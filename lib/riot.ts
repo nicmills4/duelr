@@ -100,38 +100,6 @@ export interface MatchParticipant {
   teamId: number;
   teamPosition: string;
   win: boolean;
-  item0: number;
-  item1: number;
-  item2: number;
-  item3: number;
-  item4: number;
-  item5: number;
-  item6: number; // trinket
-}
-
-// ── Challenger/Grandmaster league entries ────────────────────────────────────
-export interface LeagueEntry {
-  summonerId: string;
-  summonerName: string;
-  leaguePoints: number;
-  wins: number;
-  losses: number;
-}
-
-export async function getChallengerEntries(region: Region): Promise<LeagueEntry[]> {
-  const data = await riotFetch(
-    `https://${region}.api.riotgames.com/lol/league/v4/challengerleagues/by-queue/RANKED_SOLO_5x5`
-  );
-  if (!data) return [];
-  return (data.entries as LeagueEntry[]).sort((a, b) => b.leaguePoints - a.leaguePoints);
-}
-
-// Summoner by encrypted summoner ID → gives us the PUUID
-export async function getSummonerById(summonerId: string, region: Region) {
-  const data = await riotFetch(
-    `https://${region}.api.riotgames.com/lol/summoner/v4/summoners/${summonerId}`
-  );
-  return data as { id: string; puuid: string; summonerLevel: number } | null;
 }
 
 export interface MatchDto {

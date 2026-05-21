@@ -8,7 +8,6 @@ import type { Champion } from "@/app/api/champions/route";
 import type { MatchResult } from "@/lib/matchmaking";
 import { Swords, Clock, CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import Image from "next/image";
-import MatchupStats from "./MatchupStats";
 
 type QueueState = "idle" | "searching" | "matched" | "error";
 
@@ -235,11 +234,6 @@ export default function QueueForm({ riotId }: Props) {
         onChange={setVsChampion}
         champions={champions}
       />
-
-      {/* Matchup stats card — shown when both champions are selected */}
-      {myChampion && vsChampion && (
-        <MatchupStats myChampion={myChampion} vsChampion={vsChampion} />
-      )}
 
       <div>
         <label className="label">Elo Bracket</label>
