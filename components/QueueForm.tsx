@@ -144,13 +144,13 @@ export default function QueueForm({ riotId }: Props) {
           </div>
         </div>
 
-        <div className="bg-dark-700 rounded-xl p-4 text-left space-y-2">
+        <div className="bg-dark-700 border border-dark-600 rounded-xl p-4 text-left space-y-2">
           <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold">Opponent&apos;s Details</p>
           <p className="text-lg font-bold text-gold-400">{match.opponent.riotId}</p>
           <p className="text-sm text-gray-400">Region: <span className="text-gray-200 uppercase">{match.opponent.region}</span></p>
         </div>
 
-        <div className="bg-dark-700 rounded-xl p-4 text-sm text-gray-400 text-left space-y-2">
+        <div className="bg-dark-700 border border-dark-600 rounded-xl p-4 text-sm text-gray-400 text-left space-y-2">
           <p className="font-semibold text-white">How to start your match:</p>
           <ol className="list-decimal list-inside space-y-1">
             <li>Add <span className="text-gold-400 font-medium">{match.opponent.riotId}</span> as a friend in the League client</li>

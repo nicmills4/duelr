@@ -10,15 +10,15 @@ const config: Config = {
     extend: {
       colors: {
         gold: {
-          400: "#C89B3C",
-          500: "#A47D2A",
-          600: "#8A6A1E",
+          400: "#00D4FF",   // Challenger cyan — primary accent
+          500: "#00AACC",   // Hover state
+          600: "#0088AA",   // Scrollbar / deep accent
         },
         dark: {
-          900: "#0A0E1A",
-          800: "#0F1523",
-          700: "#141B2D",
-          600: "#1A2238",
+          900: "#050A14",   // Deep navy — page background
+          800: "#080F1E",   // Card background
+          700: "#0C1528",   // Input / elevated surface
+          600: "#111D35",   // Border / subtle surface
         },
       },
       fontFamily: {

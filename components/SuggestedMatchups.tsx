@@ -112,7 +112,7 @@ export default function SuggestedMatchups() {
               {champ.suggestions.map((s) => (
                 <div
                   key={s.vsChampion}
-                  className="flex items-center justify-between bg-dark-700 rounded-lg px-3 py-2"
+                  className="flex items-center justify-between bg-dark-700 border border-dark-600 rounded-lg px-3 py-2"
                 >
                   <div className="flex items-center gap-2">
                     <Swords className="w-4 h-4 text-gray-500" />

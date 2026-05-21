@@ -19,7 +19,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             strategy="afterInteractive"
           />
         )}
-        <header className="border-b border-gray-800 bg-dark-800/80 backdrop-blur-sm sticky top-0 z-50">
+        <header className="border-b border-dark-600 bg-dark-800/80 backdrop-blur-sm sticky top-0 z-50">
           <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
             <a href="/" className="flex items-center gap-2">
               <span className="font-bold text-xl tracking-wider"><span className="text-gold-400">Duel</span><span className="text-white">r</span></span>
