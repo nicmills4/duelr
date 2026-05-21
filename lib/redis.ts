@@ -2,11 +2,16 @@ import Redis from "ioredis";
 
 const globalForRedis = globalThis as unknown as { redis: Redis };
 
+function getTlsOptions(url: string) {
+  return url.startsWith("rediss://") ? { tls: { rejectUnauthorized: false } } : {};
+}
+
 function createRedisClient() {
   const url = process.env.REDIS_URL || "redis://localhost:6379";
   const client = new Redis(url, {
     maxRetriesPerRequest: null,
     enableReadyCheck: false,
+    ...getTlsOptions(url),
   });
   client.on("error", (err) => console.error("[Redis] error:", err.message));
   return client;
@@ -21,6 +26,7 @@ export function createSubscriberClient() {
   return new Redis(url, {
     maxRetriesPerRequest: null,
     enableReadyCheck: false,
+    ...getTlsOptions(url),
   });
 }
 
