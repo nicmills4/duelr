@@ -97,33 +97,39 @@ export default function SuggestedMatchups() {
             />
             <div>
               <p className="font-semibold text-white">{champ.myChampion}</p>
-              <p className="text-xs text-gray-500">Tough matchups from recent games</p>
+              <p className="text-xs text-gray-500">
+                {champ.status === "no_data" && "No recent match data found"}
+                {champ.status === "no_losses" && "No recent losses — you're doing great!"}
+                {champ.status === "ok" && "Tough matchups from recent games"}
+              </p>
             </div>
           </div>
 
-          {/* Suggested opponents */}
-          <div className="space-y-2">
-            {champ.suggestions.map((s) => (
-              <div
-                key={s.vsChampion}
-                className="flex items-center justify-between bg-dark-700 rounded-lg px-3 py-2"
-              >
-                <div className="flex items-center gap-2">
-                  <Swords className="w-4 h-4 text-gray-500" />
-                  <span className="text-sm font-medium text-gray-200">{s.vsChampion}</span>
-                  <span className="text-xs text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded">
-                    {s.losses} {s.losses === 1 ? "loss" : "losses"}
-                  </span>
-                </div>
-                <button
-                  onClick={() => queueForMatchup(champ.myChampion, s.vsChampion)}
-                  className="text-xs text-gold-400 hover:text-gold-500 font-medium transition-colors"
+          {/* Suggested opponents — only shown when status is ok */}
+          {champ.status === "ok" && (
+            <div className="space-y-2">
+              {champ.suggestions.map((s) => (
+                <div
+                  key={s.vsChampion}
+                  className="flex items-center justify-between bg-dark-700 rounded-lg px-3 py-2"
                 >
-                  Practice →
-                </button>
-              </div>
-            ))}
-          </div>
+                  <div className="flex items-center gap-2">
+                    <Swords className="w-4 h-4 text-gray-500" />
+                    <span className="text-sm font-medium text-gray-200">{s.vsChampion}</span>
+                    <span className="text-xs text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded">
+                      {s.losses} {s.losses === 1 ? "loss" : "losses"}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => queueForMatchup(champ.myChampion, s.vsChampion)}
+                    className="text-xs text-gold-400 hover:text-gold-500 font-medium transition-colors"
+                  >
+                    Practice →
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       ))}
     </div>
