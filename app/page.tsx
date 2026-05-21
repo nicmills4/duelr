@@ -60,11 +60,7 @@ export default async function HomePage() {
             </div>
           ))}
 
-          <div className="bg-gold-400/10 border border-gold-400/20 rounded-xl p-4 text-sm text-gold-400">
-            <strong>Dev API Key Note:</strong> Riot dev keys expire every 24h. If login fails, the API key may need to be refreshed in <code className="text-white/70">.env.local</code>.
-          </div>
-
-          {/* Rectangle ad — bottom of right column */}
+{/* Rectangle ad — bottom of right column */}
           <AdUnit slot="YOUR_SLOT_ID_2" format="rectangle" className="w-full h-64" />
         </div>
       </div>
