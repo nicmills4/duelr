@@ -13,11 +13,11 @@ export default function SuggestedMatchups() {
   const [cached, setCached] = useState(false);
   const router = useRouter();
 
-  async function fetchSuggestions() {
+  async function fetchSuggestions(forceRefresh = false) {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch("/api/suggestions");
+      const res = await fetch(`/api/suggestions${forceRefresh ? "?refresh=1" : ""}`);
       const data = await res.json();
       if (!res.ok) {
         setError(data.error || "Failed to load suggestions");
@@ -34,7 +34,7 @@ export default function SuggestedMatchups() {
     }
   }
 
-  useEffect(() => { fetchSuggestions(); }, []);
+  useEffect(() => { fetchSuggestions(false); }, []);
 
   function queueForMatchup(myChampion: string, vsChampion: string) {
     router.push(`/queue?my=${encodeURIComponent(myChampion)}&vs=${encodeURIComponent(vsChampion)}`);
@@ -72,7 +72,7 @@ export default function SuggestedMatchups() {
           <h3 className="font-semibold text-sm">Suggested Practice Matchups</h3>
         </div>
         <button
-          onClick={fetchSuggestions}
+          onClick={() => fetchSuggestions(true)}
           className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-300 transition-colors"
         >
           <RefreshCw className="w-3 h-3" />
@@ -98,9 +98,10 @@ export default function SuggestedMatchups() {
             <div>
               <p className="font-semibold text-white">{champ.myChampion}</p>
               <p className="text-xs text-gray-500">
-                {champ.status === "no_data" && "No recent match data found"}
-                {champ.status === "no_losses" && "No recent losses — you're doing great!"}
-                {champ.status === "ok" && "Tough matchups from recent games"}
+                {champ.gamesPlayed} game{champ.gamesPlayed !== 1 ? "s" : ""} in last 25
+                {" · "}
+                {champ.status === "no_losses" && "no recent losses — you're doing great!"}
+                {champ.status === "ok" && "tough matchups below"}
               </p>
             </div>
           </div>

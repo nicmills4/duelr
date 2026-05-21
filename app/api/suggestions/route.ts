@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
-import { getTopMasteries, getMatchIds, getMatch, getRouting, type Region } from "@/lib/riot";
+import { getMatchIds, getMatch, getRouting, type Region } from "@/lib/riot";
 import { redis } from "@/lib/redis";
 
 export const dynamic = "force-dynamic";
 
-const CACHE_TTL = 60 * 30; // 30 minutes
+const CACHE_KEY_PREFIX = "suggestions_v4:";
+const CACHE_TTL = 60 * 10;  // 10 minutes — short enough to stay fresh
+const RECENT_MATCHES = 25;
 const TOP_CHAMPS = 3;
-const MATCHES_PER_CHAMP = 5;
 
 export interface MatchupSuggestion {
   vsChampion: string;
@@ -20,124 +21,127 @@ export interface ChampionSuggestion {
   myChampion: string;
   imageUrl: string;
   status: ChampionSuggestionStatus;
+  gamesPlayed: number;
   suggestions: MatchupSuggestion[];
 }
 
-async function getChampionMaps(): Promise<{
-  byNumericId: Map<number, string>;
-  imageUrl: (id: string) => string;
-}> {
-  const versionsRes = await fetch("https://ddragon.leagueoflegends.com/api/versions.json");
-  const versions = await versionsRes.json() as string[];
-  const version = versions[0];
-
-  const champRes = await fetch(
-    `https://ddragon.leagueoflegends.com/cdn/${version}/data/en_US/champion.json`
-  );
-  const champData = await champRes.json() as {
-    data: Record<string, { id: string; key: string }>;
-  };
-
-  const byNumericId = new Map<number, string>();
-  for (const champ of Object.values(champData.data)) {
-    byNumericId.set(parseInt(champ.key), champ.id);
-  }
-
-  return {
-    byNumericId,
-    imageUrl: (id: string) =>
-      `https://ddragon.leagueoflegends.com/cdn/${version}/img/champion/${id}.png`,
-  };
+async function getDDragonVersion(): Promise<string> {
+  const res = await fetch("https://ddragon.leagueoflegends.com/api/versions.json");
+  const versions = await res.json() as string[];
+  return versions[0];
 }
 
-export async function GET() {
+function champImageUrl(version: string, id: string) {
+  return `https://ddragon.leagueoflegends.com/cdn/${version}/img/champion/${id}.png`;
+}
+
+export async function GET(req: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 
-  const cacheKey = `suggestions:${session.userId}`;
-  const cached = await redis.get(cacheKey);
-  if (cached) {
-    return NextResponse.json({ suggestions: JSON.parse(cached), cached: true });
+  const forceRefresh = new URL(req.url).searchParams.get("refresh") === "1";
+  const cacheKey = `${CACHE_KEY_PREFIX}${session.userId}`;
+
+  if (!forceRefresh) {
+    const cached = await redis.get(cacheKey);
+    if (cached) {
+      return NextResponse.json({ suggestions: JSON.parse(cached), cached: true });
+    }
   }
 
   try {
     const { puuid, region } = session.user;
     const routing = getRouting(region as Region);
 
-    // Top 3 most played champions
-    const masteries = await getTopMasteries(puuid, region as Region, TOP_CHAMPS);
-    if (!masteries || masteries.length === 0) {
-      return NextResponse.json({ suggestions: [], reason: "No champion mastery data found" });
+    // Fetch match IDs and DDragon version in parallel
+    const [matchIds, version] = await Promise.all([
+      getMatchIds(puuid, routing, { count: RECENT_MATCHES }),
+      getDDragonVersion(),
+    ]);
+
+    if (!matchIds || matchIds.length === 0) {
+      return NextResponse.json({ suggestions: [], reason: "No recent match history found" });
     }
 
-    const champMaps = await getChampionMaps();
-    const results: ChampionSuggestion[] = [];
+    // Fetch ALL match details in parallel — much faster, no sequential failures
+    const matchResults = await Promise.allSettled(
+      matchIds.map((id) => getMatch(id, routing))
+    );
 
-    for (const mastery of masteries) {
-      const championId = champMaps.byNumericId.get(mastery.championId);
-      if (!championId) continue;
+    const champData = new Map<string, {
+      gamesPlayed: number;
+      lossTally: Map<string, number>;
+    }>();
 
-      const imageUrl = champMaps.imageUrl(championId);
+    for (const result of matchResults) {
+      // Skip any that failed or returned null
+      if (result.status === "rejected" || !result.value) continue;
+      const match = result.value;
 
-      // Get recent match IDs filtered by this champion
-      const matchIds = await getMatchIds(puuid, routing, {
-        championId: mastery.championId,
-        count: MATCHES_PER_CHAMP,
-      });
+      const me = match.info.participants.find((p) => p.puuid === puuid);
+      if (!me?.championName) continue;
 
-      if (!matchIds || matchIds.length === 0) {
-        results.push({ myChampion: championId, imageUrl, status: "no_data", suggestions: [] });
-        continue;
+      const myChamp = me.championName;
+      if (!champData.has(myChamp)) {
+        champData.set(myChamp, { gamesPlayed: 0, lossTally: new Map() });
+      }
+      const entry = champData.get(myChamp)!;
+      entry.gamesPlayed++;
+
+      if (me.win) continue;
+
+      // Skip non-SR positions (ARAM, Arena etc.)
+      if (!me.teamPosition || me.teamPosition === "Invalid" || me.teamPosition === "") continue;
+
+      const opponent = match.info.participants.find(
+        (p) => p.teamId !== me.teamId && p.teamPosition === me.teamPosition
+      );
+      if (!opponent?.championName) continue;
+
+      entry.lossTally.set(
+        opponent.championName,
+        (entry.lossTally.get(opponent.championName) ?? 0) + 1
+      );
+    }
+
+    if (champData.size === 0) {
+      return NextResponse.json({ suggestions: [], reason: "No usable match data found" });
+    }
+
+    const topChamps = Array.from(champData.entries())
+      .sort((a, b) => b[1].gamesPlayed - a[1].gamesPlayed)
+      .slice(0, TOP_CHAMPS);
+
+    const results: ChampionSuggestion[] = topChamps.map(([myChampion, data]) => {
+      const imageUrl = champImageUrl(version, myChampion);
+
+      if (data.lossTally.size === 0) {
+        return {
+          myChampion, imageUrl,
+          status: "no_losses" as ChampionSuggestionStatus,
+          gamesPlayed: data.gamesPlayed,
+          suggestions: [],
+        };
       }
 
-      const lossTally = new Map<string, number>();
-      let verifiedMatches = 0;
-
-      for (const matchId of matchIds) {
-        const match = await getMatch(matchId, routing);
-        if (!match) continue;
-
-        const me = match.info.participants.find((p) => p.puuid === puuid);
-        if (!me) continue;
-
-        // KEY FIX: verify the user actually played this champion in this match
-        // The Riot filter param can leak matches from other champions
-        if (me.championId !== mastery.championId) continue;
-        verifiedMatches++;
-
-        if (me.win) continue; // only care about losses
-
-        // Skip if position is unknown (ARAM, missing data, etc.)
-        if (!me.teamPosition || me.teamPosition === "Invalid" || me.teamPosition === "") continue;
-
-        // Find opponent on opposite team in same lane position
-        const opponent = match.info.participants.find(
-          (p) => p.teamId !== me.teamId && p.teamPosition === me.teamPosition
-        );
-        if (!opponent) continue;
-
-        lossTally.set(opponent.championName, (lossTally.get(opponent.championName) ?? 0) + 1);
-      }
-
-      if (verifiedMatches === 0) {
-        results.push({ myChampion: championId, imageUrl, status: "no_data", suggestions: [] });
-        continue;
-      }
-
-      if (lossTally.size === 0) {
-        results.push({ myChampion: championId, imageUrl, status: "no_losses", suggestions: [] });
-        continue;
-      }
-
-      const suggestions: MatchupSuggestion[] = Array.from(lossTally.entries())
+      const suggestions: MatchupSuggestion[] = Array.from(data.lossTally.entries())
         .sort((a, b) => b[1] - a[1])
         .slice(0, 3)
         .map(([vsChampion, losses]) => ({ vsChampion, losses }));
 
-      results.push({ myChampion: championId, imageUrl, status: "ok", suggestions });
+      return {
+        myChampion, imageUrl,
+        status: "ok" as ChampionSuggestionStatus,
+        gamesPlayed: data.gamesPlayed,
+        suggestions,
+      };
+    });
+
+    // Only cache if we got a full dataset — partial results won't be stored
+    if (matchResults.filter(r => r.status === "fulfilled" && r.value).length >= matchIds.length * 0.8) {
+      await redis.setex(cacheKey, CACHE_TTL, JSON.stringify(results));
     }
 
-    await redis.setex(cacheKey, CACHE_TTL, JSON.stringify(results));
     return NextResponse.json({ suggestions: results });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
