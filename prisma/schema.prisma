@@ -1,0 +1,57 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id         String    @id @default(cuid())
+  riotId     String    @unique // "GameName#TAG"
+  puuid      String    @unique
+  region     String    // e.g. "na1", "euw1"
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  sessions   Session[]
+  queueEntry QueueEntry?
+  matchesAsA Match[]   @relation("MatchPlayerA")
+  matchesAsB Match[]   @relation("MatchPlayerB")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique @default(cuid())
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([token])
+}
+
+model QueueEntry {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  myChampion  String   // champion the user wants to play
+  vsChampion  String   // champion the user wants to face
+  eloBracket  String   // "low" | "mid" | "high" | "elite"
+  createdAt   DateTime @default(now())
+
+  @@index([myChampion, vsChampion, eloBracket])
+}
+
+model Match {
+  id         String   @id @default(cuid())
+  playerAId  String
+  playerBId  String
+  playerA    User     @relation("MatchPlayerA", fields: [playerAId], references: [id])
+  playerB    User     @relation("MatchPlayerB", fields: [playerBId], references: [id])
+  champA     String   // playerA's champion
+  champB     String   // playerB's champion
+  eloBracket String
+  createdAt  DateTime @default(now())
+}
