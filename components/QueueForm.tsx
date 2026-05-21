@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import ChampionSelector from "./ChampionSelector";
 import { ELO_BRACKETS } from "@/lib/constants";
 import type { Champion } from "@/app/api/champions/route";
@@ -15,9 +16,10 @@ interface Props {
 }
 
 export default function QueueForm({ riotId }: Props) {
+  const searchParams = useSearchParams();
   const [champions, setChampions] = useState<Champion[]>([]);
-  const [myChampion, setMyChampion] = useState("");
-  const [vsChampion, setVsChampion] = useState("");
+  const [myChampion, setMyChampion] = useState(searchParams.get("my") ?? "");
+  const [vsChampion, setVsChampion] = useState(searchParams.get("vs") ?? "");
   const [eloBracket, setEloBracket] = useState("mid");
   const [state, setState] = useState<QueueState>("idle");
   const [match, setMatch] = useState<MatchResult | null>(null);

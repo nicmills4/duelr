@@ -61,3 +61,58 @@ export function parseRiotId(raw: string): { gameName: string; tagLine: string } 
   if (idx === -1 || idx === 0 || idx === raw.length - 1) return null;
   return { gameName: raw.slice(0, idx).trim(), tagLine: raw.slice(idx + 1).trim() };
 }
+
+export function getRouting(region: Region): string {
+  return ROUTING[region] ?? "americas";
+}
+
+// Champion mastery — top N most played champions
+export async function getTopMasteries(puuid: string, region: Region, count = 5) {
+  const data = await riotFetch(
+    `https://${region}.api.riotgames.com/lol/champion-mastery/v4/champion-masteries/by-puuid/${puuid}/top?count=${count}`
+  );
+  return data as Array<{
+    championId: number;
+    championLevel: number;
+    championPoints: number;
+  }> | null;
+}
+
+// Match v5 — recent match IDs optionally filtered by champion
+export async function getMatchIds(
+  puuid: string,
+  routing: string,
+  options: { championId?: number; count?: number } = {}
+) {
+  const params = new URLSearchParams({ count: String(options.count ?? 10) });
+  if (options.championId) params.set("champion", String(options.championId));
+
+  const data = await riotFetch(
+    `https://${routing}.api.riotgames.com/lol/match/v5/matches/by-puuid/${puuid}/ids?${params}`
+  );
+  return data as string[] | null;
+}
+
+export interface MatchParticipant {
+  puuid: string;
+  championName: string;
+  championId: number;
+  teamId: number;
+  teamPosition: string;
+  win: boolean;
+}
+
+export interface MatchDto {
+  metadata: { matchId: string; participants: string[] };
+  info: {
+    participants: MatchParticipant[];
+  };
+}
+
+// Match v5 — full match details
+export async function getMatch(matchId: string, routing: string) {
+  const data = await riotFetch(
+    `https://${routing}.api.riotgames.com/lol/match/v5/matches/${matchId}`
+  );
+  return data as MatchDto | null;
+}
