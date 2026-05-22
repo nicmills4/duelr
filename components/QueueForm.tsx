@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import ChampionSelector from "./ChampionSelector";
+import LivePlayerCount from "./LivePlayerCount";
 import { ELO_BRACKETS, BRACKET_ORDER } from "@/lib/constants";
 import type { EloBracket } from "@/lib/constants";
 import type { RankInfo } from "@/app/api/me/rank/route";
@@ -384,12 +385,13 @@ export default function QueueForm({ riotId }: Props) {
           <span className="text-gold-400">{myChampData?.name}</span>
         </p>
 
-        <div className="flex justify-center">
+        <div className="flex flex-col items-center gap-2">
           <QueueDepth
             myChampion={myChampion}
             vsChampion={vsChampion}
             eloBracket={eloBracket}
           />
+          <LivePlayerCount />
         </div>
 
         <button onClick={leaveQueue} className="btn-secondary w-full flex items-center justify-center gap-2">

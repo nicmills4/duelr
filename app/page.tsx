@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import LoginForm from "@/components/LoginForm";
 import AdUnit from "@/components/AdUnit";
 import { Swords, Users, Zap } from "lucide-react";
+import LivePlayerCount from "@/components/LivePlayerCount";
 
 export default async function HomePage() {
   const session = await getSession();
@@ -20,6 +21,7 @@ export default async function HomePage() {
           Struggling into a specific champion? Find a real opponent to practice against.
           Queue as your champion, pick who you want to face, and get matched instantly.
         </p>
+        <LivePlayerCount className="justify-center" />
       </div>
 
       {/* Leaderboard banner ad — below hero, above content */}
@@ -43,7 +45,7 @@ export default async function HomePage() {
             {
               icon: <Users className="w-5 h-5 text-gold-400" />,
               title: "Elo-matched Practice",
-              desc: "Pick your elo bracket (Low / Mid / High / Elite) to find an opponent at your skill level.",
+              desc: "Pick your elo bracket (Low / Mid / High / Elite / Apex) to find an opponent at your skill level.",
             },
             {
               icon: <Zap className="w-5 h-5 text-gold-400" />,
