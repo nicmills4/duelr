@@ -25,16 +25,30 @@ export async function joinQueueAndMatch(
   vsChampion: string,
   eloBracket: EloBracket
 ): Promise<MatchResult | null> {
-  // Persist the queue entry in Postgres (upsert in case they re-queue)
+  const mirrorKey = queueKey(eloBracket, vsChampion, myChampion);
+  const myKey     = queueKey(eloBracket, myChampion, vsChampion);
+
+  // Before upserting, evict from any previous Redis queue slot so the
+  // old key doesn't accumulate ghost entries when the user changes their
+  // champion selection.
+  const existingEntry = await prisma.queueEntry.findUnique({ where: { userId } });
+  if (existingEntry) {
+    const oldKey = queueKey(
+      existingEntry.eloBracket,
+      existingEntry.myChampion,
+      existingEntry.vsChampion
+    );
+    if (oldKey !== myKey) {
+      await redis.srem(oldKey, userId);
+    }
+  }
+
+  // Persist / update the queue entry in Postgres
   await prisma.queueEntry.upsert({
-    where: { userId },
+    where:  { userId },
     create: { userId, myChampion, vsChampion, eloBracket },
     update: { myChampion, vsChampion, eloBracket },
   });
-
-  // The mirror key: someone who wants to play vsChampion vs myChampion
-  const mirrorKey = queueKey(eloBracket, vsChampion, myChampion);
-  const myKey = queueKey(eloBracket, myChampion, vsChampion);
 
   // SRANDMEMBER returns one random userId from the mirror set
   const opponentId = await redis.srandmember(mirrorKey);
@@ -45,33 +59,49 @@ export async function joinQueueAndMatch(
     return null;
   }
 
-  // Atomically remove both from their keys
+  // Atomically claim the opponent — if another request got there first,
+  // SREM returns 0 and we fall back to waiting in queue.
   const removed = await redis.srem(mirrorKey, opponentId);
   if (removed === 0) {
-    // Someone else snagged the opponent first — add self to queue
     await redis.sadd(myKey, userId);
     return null;
   }
+
+  // Remove the current user from their own key in case they were already
+  // sitting there from a previous (unchanged) queue attempt.
   await redis.srem(myKey, userId);
 
-  // Load both users
-  const [me, opponent] = await Promise.all([
-    prisma.user.findUnique({ where: { id: userId } }),
-    prisma.user.findUnique({ where: { id: opponentId } }),
-  ]);
+  // Load both users — wrap in try/catch so a DB hiccup doesn't leave
+  // the opponent permanently removed from the queue with no match.
+  let me, opponent;
+  try {
+    [me, opponent] = await Promise.all([
+      prisma.user.findUnique({ where: { id: userId } }),
+      prisma.user.findUnique({ where: { id: opponentId } }),
+    ]);
+  } catch {
+    // DB error — restore both to the queue and bail
+    await Promise.all([
+      redis.sadd(myKey, userId),
+      redis.sadd(mirrorKey, opponentId),
+    ]);
+    return null;
+  }
 
   if (!me || !opponent) {
-    // Data inconsistency — re-queue self
+    // Data inconsistency — restore whoever is valid, re-queue self
+    if (opponent) await redis.sadd(mirrorKey, opponentId);
     await redis.sadd(myKey, userId);
     return null;
   }
 
-  // Remove queue entries from Postgres
+  // Remove queue entries from Postgres and create the match record.
+  // If this throws, both users are already out of Redis — they'll need
+  // to re-queue, which is acceptable (far better than a silent hang).
   await prisma.queueEntry.deleteMany({
     where: { userId: { in: [userId, opponentId] } },
   });
 
-  // Create a Match record
   const match = await prisma.match.create({
     data: {
       playerAId: userId,
@@ -96,7 +126,7 @@ export async function joinQueueAndMatch(
 
   // Notify both users via Redis pub/sub
   await Promise.all([
-    redis.publish(matchChannel(userId), JSON.stringify(resultForMe)),
+    redis.publish(matchChannel(userId),     JSON.stringify(resultForMe)),
     redis.publish(matchChannel(opponentId), JSON.stringify(resultForOpponent)),
   ]);
 
