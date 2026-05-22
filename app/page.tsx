@@ -1,7 +1,6 @@
 import { getSession } from "@/lib/session";
 import { redirect } from "next/navigation";
 import LoginForm from "@/components/LoginForm";
-import AdUnit from "@/components/AdUnit";
 import { Swords, Users, Zap } from "lucide-react";
 import LivePlayerCount from "@/components/LivePlayerCount";
 import PopularChampions from "@/components/PopularChampions";
@@ -27,10 +26,7 @@ export default async function HomePage() {
 
       <PopularChampions />
 
-      {/* Leaderboard banner ad — below hero, above content */}
-      <AdUnit slot="YOUR_SLOT_ID_1" format="horizontal" className="w-full h-24 mb-10" />
-
-      <div className="grid md:grid-cols-2 gap-8 items-start">
+      <div className="grid md:grid-cols-2 gap-8 items-start mt-10">
         {/* Login card */}
         <div className="card">
           <h2 className="text-xl font-bold mb-6 text-white">Connect Your Account</h2>
@@ -65,8 +61,6 @@ export default async function HomePage() {
             </div>
           ))}
 
-{/* Rectangle ad — bottom of right column */}
-          <AdUnit slot="YOUR_SLOT_ID_2" format="rectangle" className="w-full h-64" />
         </div>
       </div>
     </div>

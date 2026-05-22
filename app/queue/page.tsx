@@ -3,7 +3,6 @@ import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import QueueForm from "@/components/QueueForm";
 import LogoutButton from "@/components/LogoutButton";
-import AdUnit from "@/components/AdUnit";
 import SuggestedMatchups from "@/components/SuggestedMatchups";
 import PopularChampions from "@/components/PopularChampions";
 
@@ -37,9 +36,6 @@ export default async function QueuePage() {
 
       {/* Suggested matchups based on match history */}
       <SuggestedMatchups />
-
-      {/* Banner ad below */}
-      <AdUnit slot="YOUR_SLOT_ID_3" format="horizontal" className="w-full h-24 mt-8 max-w-lg mx-auto" />
     </div>
   );
 }
