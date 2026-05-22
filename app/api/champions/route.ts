@@ -3,9 +3,10 @@ import { NextResponse } from "next/server";
 export const revalidate = 86400; // Cache champion list for 24 hours
 
 export interface Champion {
-  id: string;   // e.g. "Aatrox"
-  name: string; // display name
+  id: string;      // DDragon key, e.g. "Aatrox"
+  name: string;    // display name
   imageUrl: string;
+  isRanged: boolean;
 }
 
 export async function GET() {
@@ -18,7 +19,11 @@ export async function GET() {
       `https://ddragon.leagueoflegends.com/cdn/${latestVersion}/data/en_US/champion.json`
     );
     const champData = await champRes.json() as {
-      data: Record<string, { id: string; name: string; image: { full: string } }>;
+      data: Record<string, {
+        id: string; name: string;
+        image: { full: string };
+        stats: { attackrange: number };
+      }>;
     };
 
     const champions: Champion[] = Object.values(champData.data)
@@ -26,6 +31,7 @@ export async function GET() {
         id: c.id,
         name: c.name,
         imageUrl: `https://ddragon.leagueoflegends.com/cdn/${latestVersion}/img/champion/${c.image.full}`,
+        isRanged: c.stats.attackrange > 200,
       }))
       .sort((a, b) => a.name.localeCompare(b.name));
 

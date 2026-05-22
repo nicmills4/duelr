@@ -55,4 +55,14 @@ model Match {
   champB     String   // playerB's champion
   eloBracket String
   createdAt  DateTime @default(now())
+
+  // Outcome reporting — set once each player self-reports
+  playerAReport String?   // "win" | "loss"
+  playerBReport String?   // "win" | "loss"
+  // Confirmed when both reports agree; "DISPUTED" when they contradict
+  outcome       String?   // "A_WIN" | "B_WIN" | "DISPUTED"
+
+  @@index([playerAId])
+  @@index([playerBId])
+  @@index([outcome])
 }

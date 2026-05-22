@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { joinQueueAndMatch } from "@/lib/matchmaking";
+import { WILDCARDS } from "@/lib/champion-types";
 import type { EloBracket } from "@/lib/constants";
 
 // DDragon champion IDs are alphanumeric, 1-50 chars (e.g. "Darius", "JarvanIV")
 const CHAMPION_RE    = /^[a-zA-Z0-9]{1,50}$/;
 const VALID_BRACKETS = new Set(["low", "mid", "high", "elite"]);
+const VALID_WILDCARDS = new Set<string>(WILDCARDS);
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
@@ -27,9 +29,16 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  if (!CHAMPION_RE.test(myChampion) || !CHAMPION_RE.test(vsChampion)) {
+  if (!CHAMPION_RE.test(myChampion)) {
     return NextResponse.json(
       { error: "Invalid champion name — must be 1-50 alphanumeric characters" },
+      { status: 400 }
+    );
+  }
+  // vsChampion can be a real champion ID or a wildcard (_any, _any_melee, _any_ranged)
+  if (!CHAMPION_RE.test(vsChampion) && !VALID_WILDCARDS.has(vsChampion)) {
+    return NextResponse.json(
+      { error: "Invalid vsChampion value" },
       { status: 400 }
     );
   }

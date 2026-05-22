@@ -1,32 +1,153 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import ChampionSelector from "./ChampionSelector";
 import { ELO_BRACKETS } from "@/lib/constants";
+import { isWildcard, wildcardLabel } from "@/lib/champion-types";
 import type { Champion } from "@/app/api/champions/route";
 import type { MatchResult } from "@/lib/matchmaking";
-import { Swords, Clock, CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import {
+  Swords, Clock, CheckCircle2, XCircle, Loader2,
+  Users, Zap, Trophy, ThumbsUp, ThumbsDown,
+} from "lucide-react";
 import Image from "next/image";
 
-type QueueState = "idle" | "searching" | "matched" | "error";
+type QueueState  = "idle" | "searching" | "matched" | "error";
+type ReportState = "idle" | "pending" | "waiting" | "confirmed" | "disputed";
 
-interface Props {
-  riotId: string;
+interface Props { riotId: string; }
+
+// ── Queue depth indicator ────────────────────────────────────────────────────
+function QueueDepth({
+  myChampion, vsChampion, eloBracket,
+}: { myChampion: string; vsChampion: string; eloBracket: string }) {
+  const [depth,    setDepth]    = useState<number | null>(null);
+  const [flexible, setFlexible] = useState(false);
+
+  useEffect(() => {
+    if (!myChampion || !vsChampion || !eloBracket) { setDepth(null); return; }
+
+    const params = new URLSearchParams({ myChampion, vsChampion, eloBracket });
+    fetch(`/api/queue/depth?${params}`)
+      .then((r) => r.json())
+      .then((d) => { setDepth(d.depth ?? null); setFlexible(d.flexible ?? false); })
+      .catch(() => setDepth(null));
+  }, [myChampion, vsChampion, eloBracket]);
+
+  if (!myChampion || !vsChampion) return null;
+
+  if (flexible) {
+    return (
+      <div className="flex items-center gap-2 text-xs text-gold-400">
+        <Zap className="w-3 h-3" />
+        Flexible matching — finds opponents faster
+      </div>
+    );
+  }
+
+  if (depth === null) return null;
+
+  const instant = depth > 0;
+  return (
+    <div className={`flex items-center gap-2 text-xs ${instant ? "text-emerald-400" : "text-gray-500"}`}>
+      <Users className="w-3 h-3" />
+      {instant
+        ? `${depth} player${depth !== 1 ? "s" : ""} waiting · Instant match available`
+        : "0 players waiting · < 5 min estimated"}
+    </div>
+  );
 }
 
+// ── Outcome reporting ────────────────────────────────────────────────────────
+function OutcomeReporter({ matchId, isPlayerA }: { matchId: string; isPlayerA: boolean }) {
+  const [state,   setState]   = useState<ReportState>("idle");
+  const [outcome, setOutcome] = useState<string | null>(null);
+
+  async function report(result: "win" | "loss") {
+    setState("pending");
+    try {
+      const res  = await fetch(`/api/match/${matchId}/report`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ result }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setState("idle"); return; }
+      if (data.outcome === "DISPUTED") { setState("disputed"); return; }
+      if (data.outcome) { setState("confirmed"); setOutcome(data.outcome); return; }
+      setState("waiting");
+    } catch {
+      setState("idle");
+    }
+  }
+
+  if (state === "confirmed") {
+    const iWon = (outcome === "A_WIN" && isPlayerA) || (outcome === "B_WIN" && !isPlayerA);
+    return (
+      <div className={`flex items-center gap-2 text-sm rounded-lg px-3 py-2 ${
+        iWon
+          ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-400"
+          : "bg-red-500/10 border border-red-500/20 text-red-400"
+      }`}>
+        <Trophy className="w-4 h-4" />
+        {iWon ? "Result confirmed — Win recorded!" : "Result confirmed — Loss recorded."}
+      </div>
+    );
+  }
+
+  if (state === "disputed") {
+    return (
+      <p className="text-xs text-gray-500">
+        Outcome disputed — your opponent reported a different result.
+      </p>
+    );
+  }
+
+  if (state === "waiting") {
+    return (
+      <p className="text-xs text-gray-500">
+        Your result was recorded. Waiting for your opponent to confirm…
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <p className="text-xs text-gray-500 font-medium">How did it go?</p>
+      <div className="flex gap-2">
+        <button
+          onClick={() => report("win")}
+          disabled={state === "pending"}
+          className="flex-1 flex items-center justify-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 py-2 text-sm font-semibold hover:bg-emerald-500/20 transition-colors disabled:opacity-50"
+        >
+          <ThumbsUp className="w-4 h-4" /> I Won
+        </button>
+        <button
+          onClick={() => report("loss")}
+          disabled={state === "pending"}
+          className="flex-1 flex items-center justify-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 text-red-400 py-2 text-sm font-semibold hover:bg-red-500/20 transition-colors disabled:opacity-50"
+        >
+          <ThumbsDown className="w-4 h-4" /> I Lost
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
 export default function QueueForm({ riotId }: Props) {
   const searchParams = useSearchParams();
   const [champions, setChampions] = useState<Champion[]>([]);
   const [myChampion, setMyChampion] = useState(searchParams.get("my") ?? "");
   const [vsChampion, setVsChampion] = useState(searchParams.get("vs") ?? "");
   const [eloBracket, setEloBracket] = useState("mid");
-  const [state, setState] = useState<QueueState>("idle");
-  const [match, setMatch] = useState<MatchResult | null>(null);
-  const [error, setError] = useState("");
-  const [elapsed, setElapsed] = useState(0);
+  const [state,      setState]      = useState<QueueState>("idle");
+  const [match,      setMatch]      = useState<MatchResult | null>(null);
+  const [error,      setError]      = useState("");
+  const [elapsed,    setElapsed]    = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const sseRef = useRef<EventSource | null>(null);
+  const sseRef   = useRef<EventSource | null>(null);
 
   useEffect(() => {
     fetch("/api/champions")
@@ -45,7 +166,7 @@ export default function QueueForm({ riotId }: Props) {
   }, [state]);
 
   function formatTime(s: number) {
-    const m = Math.floor(s / 60).toString().padStart(2, "0");
+    const m   = Math.floor(s / 60).toString().padStart(2, "0");
     const sec = (s % 60).toString().padStart(2, "0");
     return `${m}:${sec}`;
   }
@@ -54,12 +175,25 @@ export default function QueueForm({ riotId }: Props) {
     if (sseRef.current) { sseRef.current.close(); sseRef.current = null; }
   }
 
+  const fireNotification = useCallback((opponent: string, myChamp: string) => {
+    if (!("Notification" in window) || Notification.permission !== "granted") return;
+    if (!document.hidden) return; // only if tabbed away
+    new Notification("Duelr — Match Found!", {
+      body: `${myChamp} vs ${opponent} · Open the tab to connect`,
+      icon: "/favicon.ico",
+    });
+  }, []);
+
   async function joinQueue(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     setState("searching");
 
-    // Start SSE listener first so we don't miss the event
+    // Request notification permission once the user starts searching
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+
     const sse = new EventSource("/api/queue/stream");
     sseRef.current = sse;
 
@@ -67,7 +201,12 @@ export default function QueueForm({ riotId }: Props) {
       try {
         const data = JSON.parse(event.data);
         if (data.error) { setError(data.error); setState("error"); }
-        else { setMatch(data as MatchResult); setState("matched"); }
+        else {
+          const result = data as MatchResult;
+          setMatch(result);
+          setState("matched");
+          fireNotification(result.opponent.champion, result.myChampion);
+        }
       } catch { setState("error"); }
       closeSse();
     };
@@ -78,21 +217,20 @@ export default function QueueForm({ riotId }: Props) {
     };
 
     try {
-      const res = await fetch("/api/queue/join", {
-        method: "POST",
+      const res  = await fetch("/api/queue/join", {
+        method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ myChampion, vsChampion, eloBracket }),
+        body:    JSON.stringify({ myChampion, vsChampion, eloBracket }),
       });
-
       const data = await res.json();
       if (!res.ok) { setError(data.error); setState("error"); closeSse(); return; }
-
       if (data.status === "matched") {
-        setMatch(data.match as MatchResult);
+        const result = data.match as MatchResult;
+        setMatch(result);
         setState("matched");
+        fireNotification(result.opponent.champion, result.myChampion);
         closeSse();
       }
-      // else: stay in "searching", SSE will fire when a match is found
     } catch {
       setError("Network error — please try again");
       setState("error");
@@ -106,12 +244,15 @@ export default function QueueForm({ riotId }: Props) {
     setState("idle");
   }
 
-  const myChampData = champions.find((c) => c.id === myChampion);
-  const vsChampData = champions.find((c) => c.id === vsChampion);
+  const myChampData       = champions.find((c) => c.id === myChampion);
+  const vsChampData       = !isWildcard(vsChampion) ? champions.find((c) => c.id === vsChampion) : null;
+  const vsLabel           = isWildcard(vsChampion) ? wildcardLabel(vsChampion as Parameters<typeof wildcardLabel>[0]) : vsChampData?.name ?? vsChampion;
   const opponentChampData = match ? champions.find((c) => c.id === match.opponent.champion) : null;
-  const myChampDataInMatch = match ? champions.find((c) => c.id === match.myChampion) : null;
+  const myChampDataMatch  = match ? champions.find((c) => c.id === match.myChampion)        : null;
 
+  // ── Matched state ──────────────────────────────────────────────────────────
   if (state === "matched" && match) {
+    const isPlayerA = true; // we don't have a clean way to know here; the report API checks server-side
     return (
       <div className="card max-w-lg mx-auto text-center space-y-6">
         <div className="flex items-center justify-center gap-2 text-emerald-400">
@@ -121,12 +262,12 @@ export default function QueueForm({ riotId }: Props) {
 
         <div className="flex items-center justify-center gap-6">
           <div className="flex flex-col items-center gap-2">
-            {myChampDataInMatch && (
-              <Image src={myChampDataInMatch.imageUrl} alt={myChampDataInMatch.name} width={64} height={64}
-                className="rounded-full ring-2 ring-gold-400" />
+            {myChampDataMatch && (
+              <Image src={myChampDataMatch.imageUrl} alt={myChampDataMatch.name}
+                width={64} height={64} className="rounded-full ring-2 ring-gold-400" />
             )}
             <span className="text-sm font-medium text-gold-400">You</span>
-            <span className="text-xs text-gray-400">{myChampDataInMatch?.name}</span>
+            <span className="text-xs text-gray-400">{myChampDataMatch?.name}</span>
           </div>
 
           <div className="flex flex-col items-center">
@@ -136,11 +277,11 @@ export default function QueueForm({ riotId }: Props) {
 
           <div className="flex flex-col items-center gap-2">
             {opponentChampData && (
-              <Image src={opponentChampData.imageUrl} alt={opponentChampData.name} width={64} height={64}
-                className="rounded-full ring-2 ring-gray-600" />
+              <Image src={opponentChampData.imageUrl} alt={opponentChampData.name}
+                width={64} height={64} className="rounded-full ring-2 ring-gray-600" />
             )}
             <span className="text-sm font-medium text-gray-300">Opponent</span>
-            <span className="text-xs text-gray-400">{opponentChampData?.name}</span>
+            <span className="text-xs text-gray-400">{opponentChampData?.name ?? match.opponent.champion}</span>
           </div>
         </div>
 
@@ -153,11 +294,14 @@ export default function QueueForm({ riotId }: Props) {
         <div className="bg-dark-700 border border-dark-600 rounded-xl p-4 text-sm text-gray-400 text-left space-y-2">
           <p className="font-semibold text-white">How to start your match:</p>
           <ol className="list-decimal list-inside space-y-1">
-            <li>Add <span className="text-gold-400 font-medium">{match.opponent.riotId}</span> as a friend in the League client</li>
+            <li>Add <span className="text-gold-400 font-medium">{match.opponent.riotId}</span> as a friend</li>
             <li>Create a Custom Game (5v5 or 1v1 mode)</li>
-            <li>Invite your opponent and enjoy the match!</li>
+            <li>Invite your opponent and play!</li>
           </ol>
         </div>
+
+        {/* Outcome reporting */}
+        <OutcomeReporter matchId={match.matchId} isPlayerA={isPlayerA} />
 
         <button onClick={() => { setMatch(null); setState("idle"); }} className="btn-secondary w-full">
           Find Another Match
@@ -166,35 +310,43 @@ export default function QueueForm({ riotId }: Props) {
     );
   }
 
+  // ── Searching state ────────────────────────────────────────────────────────
   if (state === "searching") {
     return (
       <div className="card max-w-lg mx-auto text-center space-y-6">
         <div className="flex items-center justify-center gap-3 text-gold-400">
           <Loader2 className="w-6 h-6 animate-spin" />
-          <h2 className="text-xl font-bold">Searching for Opponent...</h2>
+          <h2 className="text-xl font-bold">Searching for Opponent…</h2>
         </div>
 
         <div className="flex items-center justify-center gap-6 py-2">
           {myChampData && (
             <div className="flex flex-col items-center gap-2">
-              <Image src={myChampData.imageUrl} alt={myChampData.name} width={64} height={64}
-                className="rounded-full ring-2 ring-gold-400" />
+              <Image src={myChampData.imageUrl} alt={myChampData.name}
+                width={64} height={64} className="rounded-full ring-2 ring-gold-400" />
               <span className="text-sm font-medium">{myChampData.name}</span>
             </div>
           )}
           <div className="flex flex-col items-center">
             <Swords className="w-8 h-8 text-gray-600" />
           </div>
-          {vsChampData && (
+          {vsChampData ? (
             <div className="flex flex-col items-center gap-2">
               <div className="relative">
-                <Image src={vsChampData.imageUrl} alt={vsChampData.name} width={64} height={64}
-                  className="rounded-full ring-2 ring-gray-600 opacity-60" />
+                <Image src={vsChampData.imageUrl} alt={vsChampData.name}
+                  width={64} height={64} className="rounded-full ring-2 ring-gray-600 opacity-60" />
                 <div className="absolute inset-0 flex items-center justify-center">
                   <Loader2 className="w-8 h-8 text-gold-400/80 animate-spin" />
                 </div>
               </div>
               <span className="text-sm font-medium text-gray-400">{vsChampData.name}</span>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-2">
+              <div className="w-16 h-16 rounded-full ring-2 ring-gray-600 bg-dark-600 flex items-center justify-center">
+                <Loader2 className="w-8 h-8 text-gold-400/80 animate-spin" />
+              </div>
+              <span className="text-sm font-medium text-gray-400">{vsLabel}</span>
             </div>
           )}
         </div>
@@ -204,21 +356,26 @@ export default function QueueForm({ riotId }: Props) {
           <span className="font-mono text-lg">{formatTime(elapsed)}</span>
         </div>
 
-        <p className="text-sm text-gray-500">Looking for a <span className="text-gold-400">{vsChampData?.name}</span> player who wants to face a <span className="text-gold-400">{myChampData?.name}</span></p>
+        <p className="text-sm text-gray-500">
+          Looking for a <span className="text-gold-400">{vsLabel}</span> to face your{" "}
+          <span className="text-gold-400">{myChampData?.name}</span>
+        </p>
 
         <button onClick={leaveQueue} className="btn-secondary w-full flex items-center justify-center gap-2">
-          <XCircle className="w-4 h-4" />
-          Leave Queue
+          <XCircle className="w-4 h-4" /> Leave Queue
         </button>
       </div>
     );
   }
 
+  // ── Idle / error state ─────────────────────────────────────────────────────
   return (
     <form onSubmit={joinQueue} className="card max-w-lg mx-auto space-y-5">
       <div>
         <h2 className="text-lg font-bold text-white mb-1">Set Up Your Match</h2>
-        <p className="text-sm text-gray-400">Playing as <span className="text-gold-400 font-medium">{riotId}</span></p>
+        <p className="text-sm text-gray-400">
+          Playing as <span className="text-gold-400 font-medium">{riotId}</span>
+        </p>
       </div>
 
       <ChampionSelector
@@ -233,7 +390,17 @@ export default function QueueForm({ riotId }: Props) {
         value={vsChampion}
         onChange={setVsChampion}
         champions={champions}
+        allowWildcards
       />
+
+      {/* Queue depth + wait time */}
+      {myChampion && vsChampion && (
+        <QueueDepth
+          myChampion={myChampion}
+          vsChampion={vsChampion}
+          eloBracket={eloBracket}
+        />
+      )}
 
       <div>
         <label className="label">Elo Bracket</label>
@@ -246,7 +413,7 @@ export default function QueueForm({ riotId }: Props) {
               className={`rounded-lg border p-3 text-left transition-all ${
                 eloBracket === b.value
                   ? "border-gold-400 bg-gold-400/10 text-gold-400"
-                  : "border-gray-700 hover:border-gray-500 text-gray-300"
+                  : "border-dark-600 hover:border-gray-500 text-gray-300"
               }`}
             >
               <div className="font-semibold text-sm">{b.label}</div>
@@ -268,8 +435,7 @@ export default function QueueForm({ riotId }: Props) {
         disabled={!myChampion || !vsChampion || !eloBracket}
         className="btn-primary w-full flex items-center justify-center gap-2"
       >
-        <Swords className="w-4 h-4" />
-        Find Match
+        <Swords className="w-4 h-4" /> Find Match
       </button>
     </form>
   );
