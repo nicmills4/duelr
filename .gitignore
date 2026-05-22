@@ -30,8 +30,11 @@ yarn-error.log*
 .env.test.local
 .env.production.local
 
-# API keys
+# API keys / secrets — never commit these
 api_key.txt
+railway-env.txt
+*-env.txt
+*.env.txt
 
 # vercel
 .vercel
