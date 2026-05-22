@@ -160,21 +160,26 @@ export default function QueueForm({ riotId }: Props) {
       .then((d) => setChampions(d.champions ?? []));
   }, []);
 
-  // Fetch player's rank and gate brackets accordingly
+  // Fetch player's rank and gate brackets accordingly.
+  // On any failure (API error, expired key, network) default to "low" — strict beats permissive.
   useEffect(() => {
+    const fallback: RankInfo = { maxBracket: "low", tier: null, rank: null };
+
     fetch("/api/me/rank")
       .then((r) => r.json())
       .then((d: RankInfo & { error?: string }) => {
-        if (d.error || !d.maxBracket) return;
-        setRankInfo(d);
-        // Auto-set to their highest allowed bracket; clamp down if default is too high
+        const resolved: RankInfo = d.error || !d.maxBracket ? fallback : d;
+        setRankInfo(resolved);
         setEloBracket((current) => {
-          const maxIdx = BRACKET_ORDER.indexOf(d.maxBracket);
+          const maxIdx = BRACKET_ORDER.indexOf(resolved.maxBracket);
           const curIdx = BRACKET_ORDER.indexOf(current);
-          return curIdx > maxIdx ? d.maxBracket : current;
+          return curIdx > maxIdx ? resolved.maxBracket : current;
         });
       })
-      .catch(() => {})
+      .catch(() => {
+        setRankInfo(fallback);
+        setEloBracket("low");
+      })
       .finally(() => setRankLoading(false));
   }, []);
 
@@ -383,6 +388,14 @@ export default function QueueForm({ riotId }: Props) {
           Looking for a <span className="text-gold-400">{vsLabel}</span> to face your{" "}
           <span className="text-gold-400">{myChampData?.name}</span>
         </p>
+
+        <div className="flex justify-center">
+          <QueueDepth
+            myChampion={myChampion}
+            vsChampion={vsChampion}
+            eloBracket={eloBracket}
+          />
+        </div>
 
         <button onClick={leaveQueue} className="btn-secondary w-full flex items-center justify-center gap-2">
           <XCircle className="w-4 h-4" /> Leave Queue
