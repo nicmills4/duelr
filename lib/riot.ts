@@ -25,7 +25,7 @@ export const REGIONS: { value: Region; label: string }[] = [
 ];
 
 async function riotFetch(url: string) {
-  const apiKey = process.env.RIOT_API_KEY;
+  const apiKey = process.env.RIOT_API_KEY?.trim();
   if (!apiKey) throw new Error("RIOT_API_KEY is not configured");
 
   const res = await fetch(url, {
@@ -33,6 +33,8 @@ async function riotFetch(url: string) {
     next: { revalidate: 0 },
   });
 
+  if (res.status === 401) throw new Error("RIOT_API_KEY is invalid or expired");
+  if (res.status === 403) throw new Error("RIOT_API_KEY is invalid or expired");
   if (res.status === 404) return null;
   if (res.status === 429) throw new Error("Rate limited by Riot API — try again shortly");
   if (!res.ok) throw new Error(`Riot API error ${res.status}`);
