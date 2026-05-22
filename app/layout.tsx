@@ -5,6 +5,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Duelr — 1v1 Matchmaking",
   description: "Find your perfect 1v1 practice match in League of Legends",
+  icons: { icon: "/challenger.png" },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

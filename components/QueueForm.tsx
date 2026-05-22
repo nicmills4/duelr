@@ -462,13 +462,14 @@ export default function QueueForm({ riotId }: Props) {
             const bIdx    = BRACKET_ORDER.indexOf(b.value as EloBracket);
             const locked  = !rankLoading && rankInfo !== null && bIdx > maxIdx;
             const active  = eloBracket === b.value;
+            const isApex  = b.value === "apex";
             return (
               <button
                 key={b.value}
                 type="button"
                 onClick={() => { if (!locked) setEloBracket(b.value as EloBracket); }}
                 disabled={locked}
-                className={`relative rounded-lg border p-3 text-left transition-all ${
+                className={`relative rounded-lg border p-3 text-left transition-all ${isApex ? "col-span-2" : ""} ${
                   locked
                     ? "border-dark-600 opacity-40 cursor-not-allowed"
                     : active
