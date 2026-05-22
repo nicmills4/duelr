@@ -161,25 +161,20 @@ export default function QueueForm({ riotId }: Props) {
   }, []);
 
   // Fetch player's rank and gate brackets accordingly.
-  // On any failure (API error, expired key, network) default to "low" — strict beats permissive.
+  // On any failure (API unavailable, dev key, network) — fail open, all brackets unlocked.
   useEffect(() => {
-    const fallback: RankInfo = { maxBracket: "low", tier: null, rank: null };
-
     fetch("/api/me/rank")
       .then((r) => r.json())
       .then((d: RankInfo & { error?: string }) => {
-        const resolved: RankInfo = d.error || !d.maxBracket ? fallback : d;
-        setRankInfo(resolved);
+        if (d.error || !d.maxBracket) return; // leave rankInfo null → fail open
+        setRankInfo(d);
         setEloBracket((current) => {
-          const maxIdx = BRACKET_ORDER.indexOf(resolved.maxBracket);
+          const maxIdx = BRACKET_ORDER.indexOf(d.maxBracket);
           const curIdx = BRACKET_ORDER.indexOf(current);
-          return curIdx > maxIdx ? resolved.maxBracket : current;
+          return curIdx > maxIdx ? d.maxBracket : current;
         });
       })
-      .catch(() => {
-        setRankInfo(fallback);
-        setEloBracket("low");
-      })
+      .catch(() => {}) // network error → fail open
       .finally(() => setRankLoading(false));
   }, []);
 
@@ -452,8 +447,10 @@ export default function QueueForm({ riotId }: Props) {
                 {rankInfo.tier.charAt(0) + rankInfo.tier.slice(1).toLowerCase()} {rankInfo.rank}
               </span>
             </span>
-          ) : (
+          ) : rankInfo ? (
             <span className="text-xs text-gray-600">Unranked</span>
+          ) : (
+            <span className="text-xs text-gray-600 italic">Rank verification unavailable</span>
           )}
         </div>
         <div className="grid grid-cols-2 gap-2">
