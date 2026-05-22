@@ -6,3 +6,20 @@ export const ELO_BRACKETS = [
 ] as const;
 
 export type EloBracket = (typeof ELO_BRACKETS)[number]["value"];
+
+// Ascending order — used for ≤ / ≥ comparisons
+export const BRACKET_ORDER: EloBracket[] = ["low", "mid", "high", "elite"];
+
+// Maps Riot tier strings to our elo bracket values
+export const TIER_TO_BRACKET: Record<string, EloBracket> = {
+  IRON:        "low",
+  BRONZE:      "low",
+  SILVER:      "low",
+  GOLD:        "mid",
+  PLATINUM:    "mid",
+  EMERALD:     "high",
+  DIAMOND:     "high",
+  MASTER:      "elite",
+  GRANDMASTER: "elite",
+  CHALLENGER:  "elite",
+};

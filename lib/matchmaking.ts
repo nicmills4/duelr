@@ -1,6 +1,7 @@
 import { redis, queueKey, matchChannel } from "./redis";
 import { prisma } from "./prisma";
-import { getChampionType, isWildcard, wildcardKeysFor } from "./champion-types";
+import { isWildcard, wildcardKeysFor } from "./champion-types";
+import { getChampionType } from "./champion-cache";
 export type { EloBracket } from "./constants";
 import type { EloBracket } from "./constants";
 

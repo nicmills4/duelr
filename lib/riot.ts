@@ -116,3 +116,20 @@ export async function getMatch(matchId: string, routing: string) {
   );
   return data as MatchDto | null;
 }
+
+// League v4 — ranked entries for a summoner
+export interface LeagueEntry {
+  queueType: string;   // "RANKED_SOLO_5x5" | "RANKED_FLEX_SR"
+  tier: string;        // "IRON" | "BRONZE" | "SILVER" | "GOLD" | "PLATINUM" | "EMERALD" | "DIAMOND" | "MASTER" | "GRANDMASTER" | "CHALLENGER"
+  rank: string;        // "I" | "II" | "III" | "IV"
+  leaguePoints: number;
+  wins: number;
+  losses: number;
+}
+
+export async function getRankedEntries(summonerId: string, region: Region): Promise<LeagueEntry[] | null> {
+  const data = await riotFetch(
+    `https://${region}.api.riotgames.com/lol/league/v4/entries/by-summoner/${encodeURIComponent(summonerId)}`
+  );
+  return data as LeagueEntry[] | null;
+}

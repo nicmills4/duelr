@@ -3,13 +3,15 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import ChampionSelector from "./ChampionSelector";
-import { ELO_BRACKETS } from "@/lib/constants";
+import { ELO_BRACKETS, BRACKET_ORDER } from "@/lib/constants";
+import type { EloBracket } from "@/lib/constants";
+import type { RankInfo } from "@/app/api/me/rank/route";
 import { isWildcard, wildcardLabel } from "@/lib/champion-types";
 import type { Champion } from "@/app/api/champions/route";
 import type { MatchResult } from "@/lib/matchmaking";
 import {
   Swords, Clock, CheckCircle2, XCircle, Loader2,
-  Users, Zap, Trophy, ThumbsUp, ThumbsDown,
+  Users, Zap, Trophy, ThumbsUp, ThumbsDown, Lock,
 } from "lucide-react";
 import Image from "next/image";
 
@@ -138,21 +140,42 @@ function OutcomeReporter({ matchId, isPlayerA }: { matchId: string; isPlayerA: b
 // ── Main component ────────────────────────────────────────────────────────────
 export default function QueueForm({ riotId }: Props) {
   const searchParams = useSearchParams();
-  const [champions, setChampions] = useState<Champion[]>([]);
-  const [myChampion, setMyChampion] = useState(searchParams.get("my") ?? "");
-  const [vsChampion, setVsChampion] = useState(searchParams.get("vs") ?? "");
-  const [eloBracket, setEloBracket] = useState("mid");
-  const [state,      setState]      = useState<QueueState>("idle");
-  const [match,      setMatch]      = useState<MatchResult | null>(null);
-  const [error,      setError]      = useState("");
-  const [elapsed,    setElapsed]    = useState(0);
+  const [champions,   setChampions]   = useState<Champion[]>([]);
+  const [myChampion,  setMyChampion]  = useState(searchParams.get("my") ?? "");
+  const [vsChampion,  setVsChampion]  = useState(searchParams.get("vs") ?? "");
+  const [eloBracket,  setEloBracket]  = useState<EloBracket>("mid");
+  const [rankInfo,    setRankInfo]    = useState<RankInfo | null>(null);
+  const [rankLoading, setRankLoading] = useState(true);
+  const [state,       setState]       = useState<QueueState>("idle");
+  const [match,       setMatch]       = useState<MatchResult | null>(null);
+  const [error,       setError]       = useState("");
+  const [elapsed,     setElapsed]     = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const sseRef   = useRef<EventSource | null>(null);
 
+  // Fetch champion list
   useEffect(() => {
     fetch("/api/champions")
       .then((r) => r.json())
       .then((d) => setChampions(d.champions ?? []));
+  }, []);
+
+  // Fetch player's rank and gate brackets accordingly
+  useEffect(() => {
+    fetch("/api/me/rank")
+      .then((r) => r.json())
+      .then((d: RankInfo & { error?: string }) => {
+        if (d.error || !d.maxBracket) return;
+        setRankInfo(d);
+        // Auto-set to their highest allowed bracket; clamp down if default is too high
+        setEloBracket((current) => {
+          const maxIdx = BRACKET_ORDER.indexOf(d.maxBracket);
+          const curIdx = BRACKET_ORDER.indexOf(current);
+          return curIdx > maxIdx ? d.maxBracket : current;
+        });
+      })
+      .catch(() => {})
+      .finally(() => setRankLoading(false));
   }, []);
 
   useEffect(() => {
@@ -403,23 +426,51 @@ export default function QueueForm({ riotId }: Props) {
       )}
 
       <div>
-        <label className="label">Elo Bracket</label>
+        <div className="flex items-center justify-between mb-1.5">
+          <span className="text-sm font-medium text-gray-400">Elo Bracket</span>
+          {rankLoading ? (
+            <span className="text-xs text-gray-600 flex items-center gap-1">
+              <Loader2 className="w-3 h-3 animate-spin" /> Fetching rank…
+            </span>
+          ) : rankInfo?.tier ? (
+            <span className="text-xs text-gray-500">
+              Your rank:{" "}
+              <span className="text-gray-300 font-medium">
+                {rankInfo.tier.charAt(0) + rankInfo.tier.slice(1).toLowerCase()} {rankInfo.rank}
+              </span>
+            </span>
+          ) : (
+            <span className="text-xs text-gray-600">Unranked</span>
+          )}
+        </div>
         <div className="grid grid-cols-2 gap-2">
-          {ELO_BRACKETS.map((b) => (
-            <button
-              key={b.value}
-              type="button"
-              onClick={() => setEloBracket(b.value)}
-              className={`rounded-lg border p-3 text-left transition-all ${
-                eloBracket === b.value
-                  ? "border-gold-400 bg-gold-400/10 text-gold-400"
-                  : "border-dark-600 hover:border-gray-500 text-gray-300"
-              }`}
-            >
-              <div className="font-semibold text-sm">{b.label}</div>
-              <div className="text-xs opacity-70">{b.description}</div>
-            </button>
-          ))}
+          {ELO_BRACKETS.map((b) => {
+            const maxIdx  = rankInfo ? BRACKET_ORDER.indexOf(rankInfo.maxBracket) : BRACKET_ORDER.length - 1;
+            const bIdx    = BRACKET_ORDER.indexOf(b.value as EloBracket);
+            const locked  = !rankLoading && rankInfo !== null && bIdx > maxIdx;
+            const active  = eloBracket === b.value;
+            return (
+              <button
+                key={b.value}
+                type="button"
+                onClick={() => { if (!locked) setEloBracket(b.value as EloBracket); }}
+                disabled={locked}
+                className={`relative rounded-lg border p-3 text-left transition-all ${
+                  locked
+                    ? "border-dark-600 opacity-40 cursor-not-allowed"
+                    : active
+                      ? "border-gold-400 bg-gold-400/10 text-gold-400"
+                      : "border-dark-600 hover:border-gray-500 text-gray-300"
+                }`}
+              >
+                {locked && (
+                  <Lock className="absolute top-2 right-2 w-3 h-3 text-gray-600" />
+                )}
+                <div className="font-semibold text-sm">{b.label}</div>
+                <div className="text-xs opacity-70">{b.description}</div>
+              </button>
+            );
+          })}
         </div>
       </div>
 

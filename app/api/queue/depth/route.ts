@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { redis, queueKey } from "@/lib/redis";
-import { getChampionType, isWildcard, wildcardKeysFor } from "@/lib/champion-types";
+import { isWildcard, wildcardKeysFor } from "@/lib/champion-types";
+import { getChampionType } from "@/lib/champion-cache";
 
 export const dynamic = "force-dynamic";
 
