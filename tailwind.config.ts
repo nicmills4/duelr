@@ -14,6 +14,10 @@ const config: Config = {
           500: "#00AACC",   // Hover state
           600: "#0088AA",   // Scrollbar / deep accent
         },
+        amber: {
+          400: "#C89B3C",   // LoL gold — wordmark only
+          500: "#B8891A",   // Wordmark hover
+        },
         dark: {
           900: "#050A14",   // Deep navy — page background
           800: "#080F1E",   // Card background
@@ -22,7 +26,8 @@ const config: Config = {
         },
       },
       fontFamily: {
-        display: ["var(--font-cinzel)", "serif"],
+        display: ["var(--font-bebas-neue)", "sans-serif"],
+        sans: ["var(--font-exo-2)", "ui-sans-serif", "system-ui", "sans-serif"],
       },
       animation: {
         "pulse-slow": "pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite",

@@ -12,10 +12,10 @@ export default async function HomePage() {
   return (
     <div className="max-w-6xl mx-auto px-4 py-16">
       <div className="text-center mb-16 space-y-4">
-        <h1 className="text-5xl md:text-6xl font-bold">
-          <span className="text-gold-400">Duel</span><span className="text-white">r</span>
+        <h1 className="font-display text-7xl md:text-8xl tracking-wide">
+          <span className="text-amber-400">Duel</span><span className="text-white">r</span>
           <br />
-          <span className="text-gray-300 text-3xl md:text-4xl font-normal">1v1 Matchmaking for League of Legends</span>
+          <span className="text-gray-300 text-2xl md:text-3xl font-sans font-normal tracking-normal">1v1 Matchmaking for League of Legends</span>
         </h1>
         <p className="text-gray-400 max-w-xl mx-auto text-lg">
           Struggling into a specific champion? Find a real opponent to practice against.
