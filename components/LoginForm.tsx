@@ -86,7 +86,13 @@ export default function LoginForm() {
 
       <p className="text-xs text-gray-500 text-center">
         Your Riot ID is validated via the official Riot API.{" "}
-        <br />Dev API keys expire every 24 hours — contact the admin if login fails.
+        <br />Questions or trouble logging in?{" "}
+        <a
+          href="mailto:playduelrsupport@gmail.com"
+          className="text-gold-400 hover:underline"
+        >
+          playduelrsupport@gmail.com
+        </a>
       </p>
     </form>
   );
