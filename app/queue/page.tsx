@@ -5,6 +5,7 @@ import QueueForm from "@/components/QueueForm";
 import LogoutButton from "@/components/LogoutButton";
 import AdUnit from "@/components/AdUnit";
 import SuggestedMatchups from "@/components/SuggestedMatchups";
+import PopularChampions from "@/components/PopularChampions";
 
 export default async function QueuePage() {
   const session = await getSession();
@@ -28,6 +29,11 @@ export default async function QueuePage() {
       <Suspense>
         <QueueForm riotId={session.user.riotId} />
       </Suspense>
+
+      {/* Champions currently in queue */}
+      <div className="mt-6">
+        <PopularChampions />
+      </div>
 
       {/* Suggested matchups based on match history */}
       <SuggestedMatchups />

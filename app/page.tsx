@@ -4,6 +4,7 @@ import LoginForm from "@/components/LoginForm";
 import AdUnit from "@/components/AdUnit";
 import { Swords, Users, Zap } from "lucide-react";
 import LivePlayerCount from "@/components/LivePlayerCount";
+import PopularChampions from "@/components/PopularChampions";
 
 export default async function HomePage() {
   const session = await getSession();
@@ -23,6 +24,8 @@ export default async function HomePage() {
         </p>
         <LivePlayerCount className="justify-center" />
       </div>
+
+      <PopularChampions />
 
       {/* Leaderboard banner ad — below hero, above content */}
       <AdUnit slot="YOUR_SLOT_ID_1" format="horizontal" className="w-full h-24 mb-10" />
