@@ -10,12 +10,12 @@ const config: Config = {
     extend: {
       colors: {
         gold: {
-          400: "#00D4FF",   // Challenger cyan — primary accent
-          500: "#00AACC",   // Hover state
-          600: "#0088AA",   // Scrollbar / deep accent
+          400: "#C89B3C",   // LoL gold — primary accent + buttons
+          500: "#B8891A",   // Hover state
+          600: "#8B6914",   // Scrollbar / deep accent
         },
         amber: {
-          400: "#C89B3C",   // LoL gold — wordmark only
+          400: "#C89B3C",   // LoL gold — wordmark (same as gold-400)
           500: "#B8891A",   // Wordmark hover
         },
         dark: {
