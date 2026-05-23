@@ -1,15 +1,15 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import Image from "next/image";
 import ChampionSelector from "./ChampionSelector";
-import { ELO_BRACKETS } from "@/lib/constants";
+import { ELO_BRACKETS, BRACKET_ORDER } from "@/lib/constants";
 import type { EloBracket } from "@/lib/constants";
 import type { Champion } from "@/app/api/champions/route";
 import type { AcceptsType, LobbyPlayer } from "@/lib/lobby-types";
 import {
   Swords, Users, CheckCircle2, XCircle, Loader2,
-  Radio, RefreshCw, Clock,
+  Radio, RefreshCw, Clock, Filter, X,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -104,6 +104,26 @@ function PlayerCard({
   );
 }
 
+// ── Filter pill button ────────────────────────────────────────────────────────
+
+function FilterPill({
+  label, active, onClick,
+}: { label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+        active
+          ? "border-gold-400 bg-gold-400/10 text-gold-400"
+          : "border-dark-600 text-gray-500 hover:border-gray-500 hover:text-gray-400"
+      }`}
+    >
+      {label}
+    </button>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function LobbyBrowser({ riotId, userId }: Props) {
@@ -113,7 +133,7 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
   const [acceptsType,  setAcceptsType]  = useState<AcceptsType>("any");
   const [available,    setAvailable]    = useState(false);
 
-  const [players,      setPlayers]      = useState<LobbyPlayer[]>([]);
+  const [players,        setPlayers]        = useState<LobbyPlayer[]>([]);
   const [loadingPlayers, setLoadingPlayers] = useState(false);
 
   const [outgoing,     setOutgoing]     = useState<OutgoingChallenge | null>(null);
@@ -123,7 +143,12 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
   const [availErr,     setAvailErr]     = useState("");
   const [challengeErr, setChallengeErr] = useState("");
   const [going,        setGoing]        = useState(false);
-  const [challenging,  setChallenging]  = useState<string | null>(null); // userId being challenged
+  const [challenging,  setChallenging]  = useState<string | null>(null);
+
+  // ── Filters ────────────────────────────────────────────────────────────────
+  const [filterElo,    setFilterElo]    = useState<string>("all");
+  const [filterType,   setFilterType]   = useState<"all" | "melee" | "ranged">("all");
+  const [filterRegion, setFilterRegion] = useState<string>("all");
 
   const sseRef = useRef<EventSource | null>(null);
   const outgoingCountdown = useCountdown(outgoing?.expiresAt ?? null);
@@ -154,13 +179,29 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
         const data = JSON.parse(event.data);
 
         if (data.type === "challenge") {
+          // Request OS notification permission on first challenge
+          if ("Notification" in window && Notification.permission === "default") {
+            Notification.requestPermission();
+          }
+          // Fire OS popup if the user is in another tab or has the window minimized
+          if (
+            "Notification" in window &&
+            Notification.permission === "granted" &&
+            document.hidden
+          ) {
+            new Notification("Duelr — Challenge Received!", {
+              body: `${data.challengerRiotId} wants to 1v1 you as ${data.challengerChampName}! You have 44s to respond.`,
+              icon: "/favicon.ico",
+            });
+          }
+
           setIncoming({
-            challengeId:        data.challengeId,
-            challengerRiotId:   data.challengerRiotId,
-            challengerChampName: data.challengerChampName,
+            challengeId:          data.challengeId,
+            challengerRiotId:     data.challengerRiotId,
+            challengerChampName:  data.challengerChampName,
             challengerChampImage: data.challengerChampImage,
-            challengerElo:      data.challengerElo,
-            expiresAt:          Date.now() + 44_000,
+            challengerElo:        data.challengerElo,
+            expiresAt:            Date.now() + 44_000,
           });
         } else if (data.type === "challenge_accepted") {
           setMatchResult(data.opponent as MatchResult);
@@ -191,7 +232,7 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
     return () => clearInterval(id);
   }, [fetchPlayers]);
 
-  // ── Actions ─────────────────────────────────────────────────────────────────
+  // ── Actions ──────────────────────────────────────────────────────────────────
 
   async function goAvailable() {
     if (!myChampion) { setAvailErr("Select your champion first"); return; }
@@ -238,10 +279,10 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
     if (!res.ok) { setChallengeErr(data.error ?? "Failed to send challenge"); return; }
 
     setOutgoing({
-      challengeId:    data.challengeId,
-      targetRiotId:   player.riotId,
+      challengeId:     data.challengeId,
+      targetRiotId:    player.riotId,
       targetChampName: player.champName,
-      expiresAt:      Date.now() + 45_000,
+      expiresAt:       Date.now() + 45_000,
     });
   }
 
@@ -262,11 +303,44 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
     }
   }
 
+  // ── Derived data ──────────────────────────────────────────────────────────────
+
   const myChampData    = champions.find((c) => c.id === myChampion);
   const myBracketLabel = ELO_BRACKETS.find((b) => b.value === eloBracket)?.label ?? eloBracket;
   const otherPlayers   = players.filter((p) => p.userId !== userId);
 
-  // ── Match confirmed ──────────────────────────────────────────────────────────
+  // Unique regions present in the player list (for the region filter pills)
+  const availableRegions = useMemo(
+    () => [...new Set(otherPlayers.map((p) => p.region))].sort(),
+    [otherPlayers]
+  );
+
+  // Apply filters
+  const filteredPlayers = useMemo(() => {
+    return otherPlayers.filter((player) => {
+      if (filterRegion !== "all" && player.region !== filterRegion) return false;
+      if (filterElo    !== "all" && player.eloBracket !== filterElo) return false;
+      if (filterType   !== "all") {
+        const champInfo = champions.find((c) => c.id === player.myChampion);
+        if (champInfo) {
+          if (filterType === "ranged" && !champInfo.isRanged) return false;
+          if (filterType === "melee"  &&  champInfo.isRanged) return false;
+        }
+      }
+      return true;
+    });
+  }, [otherPlayers, filterRegion, filterElo, filterType, champions]);
+
+  const filtersActive =
+    filterRegion !== "all" || filterElo !== "all" || filterType !== "all";
+
+  function clearFilters() {
+    setFilterRegion("all");
+    setFilterElo("all");
+    setFilterType("all");
+  }
+
+  // ── Match confirmed ───────────────────────────────────────────────────────────
   if (matchResult) {
     return (
       <div className="card max-w-lg mx-auto space-y-6 text-center">
@@ -306,7 +380,7 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
     );
   }
 
-  // ── Incoming challenge ───────────────────────────────────────────────────────
+  // ── Incoming challenge ────────────────────────────────────────────────────────
   if (incoming) {
     return (
       <div className="card max-w-lg mx-auto space-y-6">
@@ -371,11 +445,11 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
     );
   }
 
-  // ── Main lobby view ──────────────────────────────────────────────────────────
+  // ── Main lobby view ───────────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
 
-      {/* ── My status card ─────────────────────────────────────────────────── */}
+      {/* ── My status card ──────────────────────────────────────────────────── */}
       <div className="card space-y-5">
         {!available ? (
           <>
@@ -514,8 +588,10 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
         )}
       </div>
 
-      {/* ── Available players ───────────────────────────────────────────────── */}
+      {/* ── Available players ────────────────────────────────────────────────── */}
       <div className="space-y-3">
+
+        {/* Header row */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Users className="w-4 h-4 text-gold-400" />
@@ -523,7 +599,9 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
               Available Players
               {otherPlayers.length > 0 && (
                 <span className="ml-2 text-xs text-gray-500 font-normal">
-                  {otherPlayers.length} online
+                  {filteredPlayers.length === otherPlayers.length
+                    ? `${otherPlayers.length} online`
+                    : `${filteredPlayers.length} of ${otherPlayers.length} shown`}
                 </span>
               )}
             </h3>
@@ -539,15 +617,94 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
           </button>
         </div>
 
+        {/* ── Filter bar ──────────────────────────────────────────────────────── */}
+        {otherPlayers.length > 0 && (
+          <div className="bg-dark-800 border border-dark-600 rounded-xl px-4 py-3 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 text-xs text-gray-500 font-medium">
+                <Filter className="w-3.5 h-3.5" />
+                Filters
+              </div>
+              {filtersActive && (
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="flex items-center gap-1 text-xs text-gray-600 hover:text-gray-400 transition-colors"
+                >
+                  <X className="w-3 h-3" />
+                  Clear
+                </button>
+              )}
+            </div>
+
+            {/* Skill level */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs text-gray-600 w-14 flex-shrink-0">Skill</span>
+              <div className="flex flex-wrap gap-1.5">
+                <FilterPill label="Any" active={filterElo === "all"} onClick={() => setFilterElo("all")} />
+                {BRACKET_ORDER.map((val) => (
+                  <FilterPill
+                    key={val}
+                    label={ELO_BRACKETS.find((b) => b.value === val)?.label ?? val}
+                    active={filterElo === val}
+                    onClick={() => setFilterElo(val)}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {/* Champion type */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs text-gray-600 w-14 flex-shrink-0">Type</span>
+              <div className="flex gap-1.5">
+                <FilterPill label="Any"    active={filterType === "all"}    onClick={() => setFilterType("all")}    />
+                <FilterPill label="Melee"  active={filterType === "melee"}  onClick={() => setFilterType("melee")}  />
+                <FilterPill label="Ranged" active={filterType === "ranged"} onClick={() => setFilterType("ranged")} />
+              </div>
+            </div>
+
+            {/* Region — only render if there are multiple regions in the list */}
+            {availableRegions.length > 1 && (
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs text-gray-600 w-14 flex-shrink-0">Region</span>
+                <div className="flex flex-wrap gap-1.5">
+                  <FilterPill label="Any" active={filterRegion === "all"} onClick={() => setFilterRegion("all")} />
+                  {availableRegions.map((r) => (
+                    <FilterPill
+                      key={r}
+                      label={r.toUpperCase()}
+                      active={filterRegion === r}
+                      onClick={() => setFilterRegion(r)}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Player list */}
         {otherPlayers.length === 0 ? (
           <div className="card text-center py-12 space-y-2">
             <Users className="w-8 h-8 mx-auto text-gray-700" />
             <p className="text-sm text-gray-600">No players available right now.</p>
             <p className="text-xs text-gray-700">Go available above to be the first!</p>
           </div>
+        ) : filteredPlayers.length === 0 ? (
+          <div className="card text-center py-10 space-y-2">
+            <Filter className="w-7 h-7 mx-auto text-gray-700" />
+            <p className="text-sm text-gray-600">No players match your filters.</p>
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="text-xs text-gold-400 hover:underline"
+            >
+              Clear filters
+            </button>
+          </div>
         ) : (
           <div className="space-y-2">
-            {otherPlayers.map((player) => (
+            {filteredPlayers.map((player) => (
               <PlayerCard
                 key={player.userId}
                 player={player}
