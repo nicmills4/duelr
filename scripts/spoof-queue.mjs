@@ -35,11 +35,11 @@ async function main() {
   });
   console.log(`✅ Fake user ready: ${fakeUser.riotId} (id: ${fakeUser.id})`);
 
-  // 2. Upsert their queue entry
+  // 2. Upsert their queue entry (vsChampions is now a JSON array)
   await prisma.queueEntry.upsert({
     where: { userId: fakeUser.id },
-    create: { userId: fakeUser.id, myChampion, vsChampion, eloBracket },
-    update: { myChampion, vsChampion, eloBracket },
+    create: { userId: fakeUser.id, myChampion, vsChampions: JSON.stringify([vsChampion]), eloBracket },
+    update: { myChampion, vsChampions: JSON.stringify([vsChampion]), eloBracket },
   });
 
   // 3. Check if there's a real player in the mirror key

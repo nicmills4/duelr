@@ -7,12 +7,16 @@ import LivePlayerCount from "./LivePlayerCount";
 import { ELO_BRACKETS, BRACKET_ORDER } from "@/lib/constants";
 import type { EloBracket } from "@/lib/constants";
 import type { RankInfo } from "@/app/api/me/rank/route";
-import { isWildcard, wildcardLabel, WILDCARD_ANY } from "@/lib/champion-types";
+import {
+  isWildcard, wildcardLabel, WILDCARD_ANY,
+  type Wildcard,
+} from "@/lib/champion-types";
 import type { Champion } from "@/app/api/champions/route";
 import type { MatchResult } from "@/lib/matchmaking";
 import {
   Swords, Clock, CheckCircle2, XCircle, Loader2,
-  Users, Zap, Trophy, ThumbsUp, ThumbsDown, Lock, ShieldCheck,
+  Users, Zap, Trophy, ThumbsUp, ThumbsDown, Lock,
+  ShieldCheck, X, Plus, Crosshair, Sword,
 } from "lucide-react";
 import type { MatchupInfo } from "@/app/api/queue/matchup-info/route";
 import Image from "next/image";
@@ -24,22 +28,24 @@ interface Props { riotId: string; }
 
 // ── Queue depth indicator ────────────────────────────────────────────────────
 function QueueDepth({
-  myChampion, vsChampion, eloBracket,
-}: { myChampion: string; vsChampion: string; eloBracket: string }) {
+  myChampion, vsChampions, eloBracket,
+}: { myChampion: string; vsChampions: string[]; eloBracket: string }) {
   const [depth,    setDepth]    = useState<number | null>(null);
   const [flexible, setFlexible] = useState(false);
 
   useEffect(() => {
-    if (!myChampion || !vsChampion || !eloBracket) { setDepth(null); return; }
-
-    const params = new URLSearchParams({ myChampion, vsChampion, eloBracket });
+    if (!myChampion || vsChampions.length === 0 || !eloBracket) {
+      setDepth(null); return;
+    }
+    const params = new URLSearchParams({ myChampion, eloBracket });
+    vsChampions.forEach((vs) => params.append("vsChampion", vs));
     fetch(`/api/queue/depth?${params}`)
       .then((r) => r.json())
       .then((d) => { setDepth(d.depth ?? null); setFlexible(d.flexible ?? false); })
       .catch(() => setDepth(null));
-  }, [myChampion, vsChampion, eloBracket]);
+  }, [myChampion, vsChampions, eloBracket]);
 
-  if (!myChampion || !vsChampion) return null;
+  if (!myChampion || vsChampions.length === 0) return null;
 
   if (flexible) {
     return (
@@ -139,12 +145,55 @@ function OutcomeReporter({ matchId, isPlayerA }: { matchId: string; isPlayerA: b
   );
 }
 
+// ── Wildcard chip icon ───────────────────────────────────────────────────────
+function WildcardIcon({ id, size = "sm" }: { id: Wildcard; size?: "sm" | "md" }) {
+  const cls = size === "md" ? "w-5 h-5" : "w-3.5 h-3.5";
+  if (id === WILDCARD_ANY)               return <Crosshair className={`${cls} text-gold-400`} />;
+  if (id === "_any_melee" as Wildcard)   return <Sword     className={`${cls} text-gold-400`} />;
+  if (id === "_any_ranged" as Wildcard)  return <Zap       className={`${cls} text-gold-400`} />;
+  return null;
+}
+
+// ── vsChampion chip ──────────────────────────────────────────────────────────
+function VsChip({
+  vs, champions, onRemove,
+}: { vs: string; champions: Champion[]; onRemove: () => void }) {
+  if (isWildcard(vs)) {
+    return (
+      <div className="flex items-center gap-1.5 bg-gold-400/10 border border-gold-400/25 rounded-lg px-2.5 py-1.5 text-sm text-gold-400">
+        <WildcardIcon id={vs as Wildcard} />
+        <span className="font-medium">{wildcardLabel(vs as Wildcard)}</span>
+        <button type="button" onClick={onRemove} className="ml-0.5 hover:text-white transition-colors">
+          <X className="w-3.5 h-3.5" />
+        </button>
+      </div>
+    );
+  }
+  const champ = champions.find((c) => c.id === vs);
+  return (
+    <div className="flex items-center gap-1.5 bg-dark-700 border border-dark-600 rounded-lg px-2.5 py-1.5 text-sm">
+      {champ && (
+        <Image src={champ.imageUrl} alt={champ.name} width={20} height={20}
+          className="rounded-full ring-1 ring-dark-500" />
+      )}
+      <span className="text-gray-200 font-medium">{champ?.name ?? vs}</span>
+      <button type="button" onClick={onRemove} className="ml-0.5 text-gray-500 hover:text-gray-300 transition-colors">
+        <X className="w-3.5 h-3.5" />
+      </button>
+    </div>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 export default function QueueForm({ riotId }: Props) {
-  const searchParams = useSearchParams();
+  const searchParams  = useSearchParams();
   const [champions,   setChampions]   = useState<Champion[]>([]);
   const [myChampion,  setMyChampion]  = useState(searchParams.get("my") ?? "");
-  const [vsChampion,  setVsChampion]  = useState(searchParams.get("vs") ?? "");
+  // vsChampions is an array; URL ?vs=X initialises to [X]
+  const [vsChampions, setVsChampions] = useState<string[]>(() => {
+    const vs = searchParams.get("vs");
+    return vs ? [vs] : [];
+  });
   const [eloBracket,  setEloBracket]  = useState<EloBracket>("mid");
   const [rankInfo,    setRankInfo]    = useState<RankInfo | null>(null);
   const [rankLoading, setRankLoading] = useState(true);
@@ -154,17 +203,20 @@ export default function QueueForm({ riotId }: Props) {
   const [elapsed,     setElapsed]     = useState(0);
   const [matchupInfo,  setMatchupInfo]  = useState<MatchupInfo | null>(null);
   const [totalPlayers, setTotalPlayers] = useState<number | null>(null);
+  // Controls the "Add another champion" selector visibility
+  const [addingVs,    setAddingVs]    = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const sseRef   = useRef<EventSource | null>(null);
 
   const LOW_PLAYER_THRESHOLD = 10;
+  const MAX_VS_CHAMPIONS     = 5;
 
   // Sync champion selections when URL params change (e.g. "Practice →" in suggested matchups)
   useEffect(() => {
     const my = searchParams.get("my");
     const vs = searchParams.get("vs");
     if (my) setMyChampion(my);
-    if (vs) setVsChampion(vs);
+    if (vs) setVsChampions([vs]);
   }, [searchParams]);
 
   // Fetch champion list
@@ -193,7 +245,7 @@ export default function QueueForm({ riotId }: Props) {
     fetch("/api/me/rank")
       .then((r) => r.json())
       .then((d: RankInfo & { error?: string }) => {
-        if (d.error || !d.maxBracket) return; // leave rankInfo null → fail open
+        if (d.error || !d.maxBracket) return;
         setRankInfo(d);
         setEloBracket((current) => {
           const maxIdx = BRACKET_ORDER.indexOf(d.maxBracket);
@@ -201,22 +253,24 @@ export default function QueueForm({ riotId }: Props) {
           return curIdx > maxIdx ? d.maxBracket : current;
         });
       })
-      .catch(() => {}) // network error → fail open
+      .catch(() => {})
       .finally(() => setRankLoading(false));
   }, []);
 
   // Fetch counter-matchup info whenever champion selection changes
   useEffect(() => {
-    if (!myChampion || !vsChampion || isWildcard(vsChampion)) {
+    const concrete = vsChampions.filter((vs) => !isWildcard(vs));
+    if (!myChampion || concrete.length === 0) {
       setMatchupInfo(null);
       return;
     }
-    const params = new URLSearchParams({ myChampion, vsChampion, eloBracket });
+    const params = new URLSearchParams({ myChampion, eloBracket });
+    concrete.forEach((vs) => params.append("vsChampion", vs));
     fetch(`/api/queue/matchup-info?${params}`)
       .then((r) => r.json())
       .then((d: MatchupInfo) => setMatchupInfo(d))
       .catch(() => setMatchupInfo(null));
-  }, [myChampion, vsChampion, eloBracket]);
+  }, [myChampion, vsChampions, eloBracket]);
 
   useEffect(() => {
     if (state === "searching") {
@@ -240,7 +294,7 @@ export default function QueueForm({ riotId }: Props) {
 
   const fireNotification = useCallback((opponent: string, myChamp: string) => {
     if (!("Notification" in window) || Notification.permission !== "granted") return;
-    if (!document.hidden) return; // only if tabbed away
+    if (!document.hidden) return;
     new Notification("Duelr — Match Found!", {
       body: `${myChamp} vs ${opponent} · Open the tab to connect`,
       icon: "/favicon.ico",
@@ -252,7 +306,6 @@ export default function QueueForm({ riotId }: Props) {
     setError("");
     setState("searching");
 
-    // Request notification permission once the user starts searching
     if ("Notification" in window && Notification.permission === "default") {
       Notification.requestPermission();
     }
@@ -283,7 +336,7 @@ export default function QueueForm({ riotId }: Props) {
       const res  = await fetch("/api/queue/join", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ myChampion, vsChampion, eloBracket }),
+        body:    JSON.stringify({ myChampion, vsChampions, eloBracket }),
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error); setState("error"); closeSse(); return; }
@@ -307,15 +360,50 @@ export default function QueueForm({ riotId }: Props) {
     setState("idle");
   }
 
-  const myChampData       = champions.find((c) => c.id === myChampion);
-  const vsChampData       = !isWildcard(vsChampion) ? champions.find((c) => c.id === vsChampion) : null;
-  const vsLabel           = isWildcard(vsChampion) ? wildcardLabel(vsChampion as Parameters<typeof wildcardLabel>[0]) : vsChampData?.name ?? vsChampion;
-  const opponentChampData = match ? champions.find((c) => c.id === match.opponent.champion) : null;
-  const myChampDataMatch  = match ? champions.find((c) => c.id === match.myChampion)        : null;
+  // ── vsChampion helpers ─────────────────────────────────────────────────────
+  function addVsChampion(id: string) {
+    if (!id) return;
+    if (isWildcard(id)) {
+      // Wildcard replaces all — only one wildcard at a time, exclusive with specific champs
+      setVsChampions([id]);
+    } else {
+      setVsChampions((prev) => {
+        // Don't add if already present, and clear any wildcards
+        const withoutWildcards = prev.filter((v) => !isWildcard(v));
+        if (withoutWildcards.includes(id)) return prev;
+        return [...withoutWildcards, id];
+      });
+    }
+    setAddingVs(false);
+  }
+
+  function removeVsChampion(id: string) {
+    setVsChampions((prev) => prev.filter((v) => v !== id));
+  }
+
+  const hasWildcard     = vsChampions.some((v) => isWildcard(v));
+  const specificCount   = vsChampions.filter((v) => !isWildcard(v)).length;
+  const canAddMore      = !hasWildcard && specificCount < MAX_VS_CHAMPIONS;
+
+  const myChampData         = champions.find((c) => c.id === myChampion);
+  const opponentChampData   = match ? champions.find((c) => c.id === match.opponent.champion) : null;
+  const myChampDataMatch    = match ? champions.find((c) => c.id === match.myChampion) : null;
+  const vsChampDataList     = vsChampions
+    .filter((v) => !isWildcard(v))
+    .map((v) => champions.find((c) => c.id === v))
+    .filter(Boolean) as Champion[];
+
+  // Label for display in searching state
+  const vsLabels = vsChampions.map((vs) =>
+    isWildcard(vs)
+      ? wildcardLabel(vs as Wildcard)
+      : champions.find((c) => c.id === vs)?.name ?? vs
+  );
+  const vsDisplayLabel = vsLabels.join(" or ");
 
   // ── Matched state ──────────────────────────────────────────────────────────
   if (state === "matched" && match) {
-    const isPlayerA = true; // we don't have a clean way to know here; the report API checks server-side
+    const isPlayerA = true;
     return (
       <div className="card max-w-lg mx-auto text-center space-y-6">
         <div className="flex items-center justify-center gap-2 text-emerald-400">
@@ -363,7 +451,6 @@ export default function QueueForm({ riotId }: Props) {
           </ol>
         </div>
 
-        {/* Outcome reporting */}
         <OutcomeReporter matchId={match.matchId} isPlayerA={isPlayerA} />
 
         <button onClick={() => { setMatch(null); setState("idle"); }} className="btn-secondary w-full">
@@ -393,23 +480,45 @@ export default function QueueForm({ riotId }: Props) {
           <div className="flex flex-col items-center">
             <Swords className="w-8 h-8 text-gray-600" />
           </div>
-          {vsChampData ? (
+
+          {/* Show up to 3 vsChampion icons, stacked or single */}
+          {hasWildcard ? (
+            <div className="flex flex-col items-center gap-2">
+              <div className="w-16 h-16 rounded-full ring-2 ring-gray-600 bg-dark-600 flex items-center justify-center">
+                <Loader2 className="w-8 h-8 text-gold-400/80 animate-spin" />
+              </div>
+              <span className="text-sm font-medium text-gray-400">{vsDisplayLabel}</span>
+            </div>
+          ) : vsChampDataList.length === 1 ? (
             <div className="flex flex-col items-center gap-2">
               <div className="relative">
-                <Image src={vsChampData.imageUrl} alt={vsChampData.name}
+                <Image src={vsChampDataList[0].imageUrl} alt={vsChampDataList[0].name}
                   width={64} height={64} className="rounded-full ring-2 ring-gray-600 opacity-60" />
                 <div className="absolute inset-0 flex items-center justify-center">
                   <Loader2 className="w-8 h-8 text-gold-400/80 animate-spin" />
                 </div>
               </div>
-              <span className="text-sm font-medium text-gray-400">{vsChampData.name}</span>
+              <span className="text-sm font-medium text-gray-400">{vsChampDataList[0].name}</span>
             </div>
           ) : (
             <div className="flex flex-col items-center gap-2">
-              <div className="w-16 h-16 rounded-full ring-2 ring-gray-600 bg-dark-600 flex items-center justify-center">
-                <Loader2 className="w-8 h-8 text-gold-400/80 animate-spin" />
+              <div className="flex -space-x-3">
+                {vsChampDataList.slice(0, 4).map((c, i) => (
+                  <div key={c.id} className="relative" style={{ zIndex: vsChampDataList.length - i }}>
+                    <Image src={c.imageUrl} alt={c.name} width={40} height={40}
+                      className="rounded-full ring-2 ring-dark-800 opacity-70" />
+                  </div>
+                ))}
+                {vsChampDataList.length > 4 && (
+                  <div className="w-10 h-10 rounded-full ring-2 ring-dark-800 bg-dark-600 flex items-center justify-center text-xs text-gray-400">
+                    +{vsChampDataList.length - 4}
+                  </div>
+                )}
               </div>
-              <span className="text-sm font-medium text-gray-400">{vsLabel}</span>
+              <span className="text-xs font-medium text-gray-400">{vsChampDataList.length} opponents</span>
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0">
+                <Loader2 className="w-6 h-6 text-gold-400/80 animate-spin" />
+              </div>
             </div>
           )}
         </div>
@@ -420,16 +529,14 @@ export default function QueueForm({ riotId }: Props) {
         </div>
 
         <p className="text-sm text-gray-500">
-          Looking for a <span className="text-gold-400">{vsLabel}</span> to face your{" "}
+          Looking for{" "}
+          <span className="text-gold-400">{vsDisplayLabel}</span>{" "}
+          to face your{" "}
           <span className="text-gold-400">{myChampData?.name}</span>
         </p>
 
         <div className="flex flex-col items-center gap-2">
-          <QueueDepth
-            myChampion={myChampion}
-            vsChampion={vsChampion}
-            eloBracket={eloBracket}
-          />
+          <QueueDepth myChampion={myChampion} vsChampions={vsChampions} eloBracket={eloBracket} />
           <LivePlayerCount />
           {matchupInfo?.isCounter && (
             <div className="flex items-center gap-1.5 text-xs text-amber-400">
@@ -437,7 +544,7 @@ export default function QueueForm({ riotId }: Props) {
               <span>
                 Counter advantage · searching{" "}
                 {matchupInfo.bonusBracketLabel
-                  ? `${ELO_BRACKETS.find(b => b.value === eloBracket)?.label} + ${matchupInfo.bonusBracketLabel}`
+                  ? `${ELO_BRACKETS.find((b) => b.value === eloBracket)?.label} + ${matchupInfo.bonusBracketLabel}`
                   : "expanded pool"}
               </span>
             </div>
@@ -468,22 +575,79 @@ export default function QueueForm({ riotId }: Props) {
         champions={champions}
       />
 
-      <ChampionSelector
-        label="I want to face"
-        value={vsChampion}
-        onChange={setVsChampion}
-        champions={champions}
-        allowWildcards
-      />
+      {/* ── vsChampions multi-select ──────────────────────────────────────── */}
+      <div>
+        <div className="flex items-center justify-between mb-1.5">
+          <label className="label mb-0">I want to face</label>
+          {vsChampions.length > 0 && !hasWildcard && (
+            <span className="text-xs text-gray-600">
+              {specificCount}/{MAX_VS_CHAMPIONS} selected
+            </span>
+          )}
+        </div>
+
+        {vsChampions.length === 0 && !addingVs ? (
+          /* Empty state — show full selector */
+          <ChampionSelector
+            label=""
+            value=""
+            onChange={addVsChampion}
+            champions={champions}
+            allowWildcards
+          />
+        ) : (
+          <div className="space-y-2">
+            {/* Chips */}
+            <div className="flex flex-wrap gap-2">
+              {vsChampions.map((vs) => (
+                <VsChip
+                  key={vs}
+                  vs={vs}
+                  champions={champions}
+                  onRemove={() => removeVsChampion(vs)}
+                />
+              ))}
+            </div>
+
+            {/* Add more button / inline selector */}
+            {canAddMore && (
+              addingVs ? (
+                <ChampionSelector
+                  label=""
+                  value=""
+                  onChange={addVsChampion}
+                  champions={champions}
+                  allowWildcards={false}
+                />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setAddingVs(true)}
+                  className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-300 transition-colors py-1"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Add another champion
+                </button>
+              )
+            )}
+
+            {hasWildcard && (
+              <p className="text-xs text-gray-600">
+                Wildcard active — matches any opponent champion.
+              </p>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Low player count suggestion */}
       {totalPlayers !== null &&
         totalPlayers < LOW_PLAYER_THRESHOLD &&
-        vsChampion &&
-        !isWildcard(vsChampion) && (
+        vsChampions.length > 0 &&
+        !hasWildcard && (
         <button
           type="button"
-          onClick={() => setVsChampion(WILDCARD_ANY)}
+          onClick={() => setVsChampions([WILDCARD_ANY])}
           className="flex items-center gap-2.5 w-full text-xs text-left bg-gold-400/10 border border-gold-400/20 text-gold-400 rounded-lg px-3 py-2.5 hover:bg-gold-400/15 transition-colors group"
         >
           <Users className="w-3.5 h-3.5 flex-shrink-0 opacity-80" />
@@ -500,11 +664,11 @@ export default function QueueForm({ riotId }: Props) {
         </button>
       )}
 
-      {/* Queue depth + wait time */}
-      {myChampion && vsChampion && (
+      {/* Queue depth */}
+      {myChampion && vsChampions.length > 0 && (
         <QueueDepth
           myChampion={myChampion}
-          vsChampion={vsChampion}
+          vsChampions={vsChampions}
           eloBracket={eloBracket}
         />
       )}
@@ -551,11 +715,11 @@ export default function QueueForm({ riotId }: Props) {
         </div>
         <div className="grid grid-cols-2 gap-2">
           {ELO_BRACKETS.map((b) => {
-            const maxIdx  = rankInfo ? BRACKET_ORDER.indexOf(rankInfo.maxBracket) : BRACKET_ORDER.length - 1;
-            const bIdx    = BRACKET_ORDER.indexOf(b.value as EloBracket);
-            const locked  = !rankLoading && rankInfo !== null && bIdx > maxIdx;
-            const active  = eloBracket === b.value;
-            const isApex  = b.value === "apex";
+            const maxIdx = rankInfo ? BRACKET_ORDER.indexOf(rankInfo.maxBracket) : BRACKET_ORDER.length - 1;
+            const bIdx   = BRACKET_ORDER.indexOf(b.value as EloBracket);
+            const locked = !rankLoading && rankInfo !== null && bIdx > maxIdx;
+            const active = eloBracket === b.value;
+            const isApex = b.value === "apex";
             return (
               <button
                 key={b.value}
@@ -590,7 +754,7 @@ export default function QueueForm({ riotId }: Props) {
 
       <button
         type="submit"
-        disabled={!myChampion || !vsChampion || !eloBracket}
+        disabled={!myChampion || vsChampions.length === 0 || !eloBracket}
         className="btn-primary w-full flex items-center justify-center gap-2"
       >
         <Swords className="w-4 h-4" /> Find Match

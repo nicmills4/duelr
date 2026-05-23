@@ -16,18 +16,6 @@ export interface MatchResult {
   myChampion: string;
 }
 
-/**
- * Attempts to find a match for the given queue entry.
- *
- * Wildcard vsChampion values (_any, _any_melee, _any_ranged) are supported:
- *   - Wildcard players just add themselves to the queue; they are found by
- *     non-wildcard players who check the relevant wildcard key.
- *   - Non-wildcard players check: exact mirror → _any → _any_{their type}.
- *
- * On success: creates a Match record, clears both queue slots, publishes to
- * both users' match channels, and returns the MatchResult for the caller.
- * On no match: adds the caller to the queue and returns null.
- */
 /** Returns the bracket one step above the given one, or null if already apex. */
 function nextEloBracket(bracket: EloBracket): EloBracket | null {
   const idx = BRACKET_ORDER.indexOf(bracket);
@@ -36,79 +24,108 @@ function nextEloBracket(bracket: EloBracket): EloBracket | null {
     : null;
 }
 
+/** Parse vsChampions from a QueueEntry (handles legacy single-string entries). */
+function parseVsChampions(raw: string): string[] {
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return parsed as string[];
+  } catch {}
+  // Legacy: bare string stored directly
+  return [raw];
+}
+
 /**
- * @param counterBonus  When true and vsChampion is a concrete champion (not a
- *                      wildcard), the search is expanded to also include the
- *                      next elo bracket up. Use when myChampion has a >51%
- *                      win-rate advantage into vsChampion.
+ * Attempts to find a match for the given queue entry.
+ *
+ * vsChampions is an array of champion IDs or wildcards. Typical cases:
+ *   ["_any"]             — accept any opponent
+ *   ["Darius"]           — specific 1-champion queue
+ *   ["Darius", "Garen"]  — multi-champion queue (matches whichever is available first)
+ *
+ * Wildcard players add themselves to their key and wait to be claimed.
+ * Non-wildcard players scan the relevant opponent keys for an instant match.
+ *
+ * counterBonusFor: a set of vsChampion IDs where the caller has a >51% WR
+ * advantage; for those, the search is extended to include the next elo bracket.
  */
 export async function joinQueueAndMatch(
   userId: string,
   myChampion: string,
-  vsChampion: string,
+  vsChampions: string[],
   eloBracket: EloBracket,
-  counterBonus = false
+  counterBonusFor: Set<string> = new Set()
 ): Promise<MatchResult | null> {
-  const myKey = queueKey(eloBracket, myChampion, vsChampion);
+  const vsJson = JSON.stringify(vsChampions);
+  const myKeys = vsChampions.map((vs) => queueKey(eloBracket, myChampion, vs));
 
-  // ── Clear stale Redis slot from any previous queue entry ─────────────────
+  // ── Clear stale Redis slots from any previous queue entry ─────────────────
   const existingEntry = await prisma.queueEntry.findUnique({ where: { userId } });
   if (existingEntry) {
-    const oldKey = queueKey(
-      existingEntry.eloBracket,
-      existingEntry.myChampion,
-      existingEntry.vsChampion
+    const oldVs  = parseVsChampions(existingEntry.vsChampions);
+    const newSet = new Set(myKeys);
+    const oldKeys = oldVs.map((vs) =>
+      queueKey(existingEntry.eloBracket, existingEntry.myChampion, vs)
     );
-    if (oldKey !== myKey) await redis.srem(oldKey, userId);
+    const toRemove = oldKeys.filter((k) => !newSet.has(k));
+    if (toRemove.length > 0) {
+      await Promise.all(toRemove.map((k) => redis.srem(k, userId)));
+    }
   }
 
   // ── Persist / update queue entry ──────────────────────────────────────────
   await prisma.queueEntry.upsert({
     where:  { userId },
-    create: { userId, myChampion, vsChampion, eloBracket },
-    update: { myChampion, vsChampion, eloBracket },
+    create: { userId, myChampion, vsChampions: vsJson, eloBracket },
+    update: { myChampion, vsChampions: vsJson, eloBracket },
   });
 
-  // ── Wildcard players just wait — they are claimed by non-wildcard joiners ─
-  if (isWildcard(vsChampion)) {
-    await redis.sadd(myKey, userId);
+  // ── Wildcard-only players just wait in their key ───────────────────────────
+  const allWildcard = vsChampions.every((vs) => isWildcard(vs));
+  if (allWildcard) {
+    await Promise.all(myKeys.map((k) => redis.sadd(k, userId)));
     return null;
   }
 
-  // ── Build the list of keys to scan for a compatible opponent ─────────────
-  // Key pattern: queue:{elo}:{vsChampion}:{theirVsChampion}
-  //   - exact:    they play vsChampion, they want myChampion
-  //   - _any:     they play vsChampion, they want any opponent
-  //   - _any_X:   they play vsChampion, they want any opponent of my attack type
-  const exactKey  = queueKey(eloBracket, vsChampion, myChampion);
-  const myType    = await getChampionType(myChampion); // null on DDragon error
+  // ── Build the complete list of opponent keys to scan ──────────────────────
+  // For each specific vsChampion, we look for:
+  //   - exact:    queue:{elo}:{vsChamp}:{myChamp}
+  //   - wildcard: queue:{elo}:{vsChamp}:{_any|_any_melee|_any_ranged}
+  //   - counter:  same keys one bracket higher
+  const myType   = await getChampionType(myChampion);
   const wildcards = myType ? wildcardKeysFor(myType) : ["_any" as const];
-  const extraKeys = wildcards.map((w) => queueKey(eloBracket, vsChampion, w));
 
-  // Counter-bonus: also scan the next bracket up for concrete matchups only
-  const bonusKeys: string[] = [];
-  if (counterBonus && !isWildcard(vsChampion)) {
-    const nextBracket = nextEloBracket(eloBracket);
-    if (nextBracket) {
-      bonusKeys.push(
-        queueKey(nextBracket, vsChampion, myChampion),
-        ...wildcards.map((w) => queueKey(nextBracket, vsChampion, w))
-      );
+  interface KeyToCheck { key: string; vsChampion: string }
+  const keysToCheck: KeyToCheck[] = [];
+
+  for (const vs of vsChampions) {
+    if (isWildcard(vs)) continue; // wildcards just wait passively
+
+    keysToCheck.push(
+      { key: queueKey(eloBracket, vs, myChampion), vsChampion: vs },
+      ...wildcards.map((w) => ({ key: queueKey(eloBracket, vs, w), vsChampion: vs }))
+    );
+
+    if (counterBonusFor.has(vs)) {
+      const nextBracket = nextEloBracket(eloBracket);
+      if (nextBracket) {
+        keysToCheck.push(
+          { key: queueKey(nextBracket, vs, myChampion), vsChampion: vs },
+          ...wildcards.map((w) => ({ key: queueKey(nextBracket, vs, w), vsChampion: vs }))
+        );
+      }
     }
   }
 
-  const keysToCheck = [exactKey, ...extraKeys, ...bonusKeys];
-
   // ── Try each key; first atomic claim wins ─────────────────────────────────
-  for (const checkKey of keysToCheck) {
+  for (const { key: checkKey, vsChampion: matchedVs } of keysToCheck) {
     const opponentId = await redis.srandmember(checkKey);
     if (!opponentId || opponentId === userId) continue;
 
     const removed = await redis.srem(checkKey, opponentId);
     if (removed === 0) continue; // race — someone else claimed them first
 
-    // Clean up caller from their own slot (no-op if not present yet)
-    await redis.srem(myKey, userId);
+    // Remove caller from ALL their queue slots
+    await Promise.all(myKeys.map((k) => redis.srem(k, userId)));
 
     // ── Load both users ───────────────────────────────────────────────────
     let me, opponent;
@@ -120,7 +137,7 @@ export async function joinQueueAndMatch(
     } catch {
       // DB error — restore both so neither is lost
       await Promise.all([
-        redis.sadd(myKey, userId),
+        ...myKeys.map((k) => redis.sadd(k, userId)),
         redis.sadd(checkKey, opponentId),
       ]);
       return null;
@@ -128,17 +145,15 @@ export async function joinQueueAndMatch(
 
     if (!me || !opponent) {
       if (opponent) await redis.sadd(checkKey, opponentId);
-      await redis.sadd(myKey, userId);
+      await Promise.all(myKeys.map((k) => redis.sadd(k, userId)));
       return null;
     }
 
-    // ── Resolve the opponent's actual champion (handles wildcard entries) ──
-    // The checkKey format is queue:{elo}:{opponentMyChamp}:{opponentVsChamp}.
-    // The first variable segment after elo IS the opponent's myChampion.
-    // Since vsChampion (caller's side) equals that, it's already correct.
+    // ── Resolve the opponent's actual champion ────────────────────────────
     // For wildcard entries the opponent's QueueEntry holds their real champion.
-    const opponentEntry = await prisma.queueEntry.findUnique({ where: { userId: opponentId } });
-    const opponentChampion = opponentEntry?.myChampion ?? vsChampion;
+    // For exact entries the matchedVs is already the opponent's champion.
+    const opponentEntry    = await prisma.queueEntry.findUnique({ where: { userId: opponentId } });
+    const opponentChampion = opponentEntry?.myChampion ?? matchedVs;
 
     // ── Persist match ─────────────────────────────────────────────────────
     await prisma.queueEntry.deleteMany({
@@ -156,14 +171,14 @@ export async function joinQueueAndMatch(
     });
 
     const resultForMe: MatchResult = {
-      matchId: match.id,
-      opponent: { riotId: opponent.riotId, region: opponent.region, champion: opponentChampion },
+      matchId:   match.id,
+      opponent:  { riotId: opponent.riotId, region: opponent.region, champion: opponentChampion },
       myChampion,
     };
 
     const resultForOpponent: MatchResult = {
-      matchId: match.id,
-      opponent: { riotId: me.riotId, region: me.region, champion: myChampion },
+      matchId:   match.id,
+      opponent:  { riotId: me.riotId, region: me.region, champion: myChampion },
       myChampion: opponentChampion,
     };
 
@@ -175,8 +190,8 @@ export async function joinQueueAndMatch(
     return resultForMe;
   }
 
-  // ── No opponent found — wait in queue ─────────────────────────────────────
-  await redis.sadd(myKey, userId);
+  // ── No opponent found — add to ALL vsChampion queue slots and wait ────────
+  await Promise.all(myKeys.map((k) => redis.sadd(k, userId)));
   return null;
 }
 
@@ -184,9 +199,13 @@ export async function leaveQueue(userId: string): Promise<void> {
   const entry = await prisma.queueEntry.findUnique({ where: { userId } });
   if (!entry) return;
 
-  const key = queueKey(entry.eloBracket, entry.myChampion, entry.vsChampion);
+  const vsChampions = parseVsChampions(entry.vsChampions);
+  const keys = vsChampions.map((vs) =>
+    queueKey(entry.eloBracket, entry.myChampion, vs)
+  );
+
   await Promise.all([
-    redis.srem(key, userId),
+    ...keys.map((k) => redis.srem(k, userId)),
     prisma.queueEntry.delete({ where: { userId } }),
   ]);
 }

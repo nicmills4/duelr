@@ -20,9 +20,9 @@ export async function GET(req: NextRequest) {
   }
 
   const { searchParams } = new URL(req.url);
-  const myChampion = searchParams.get("myChampion") ?? "";
-  const vsChampion = searchParams.get("vsChampion") ?? "";
-  const eloBracket = (searchParams.get("eloBracket") ?? "mid") as EloBracket;
+  const myChampion     = searchParams.get("myChampion") ?? "";
+  const vsChampionList = searchParams.getAll("vsChampion");
+  const eloBracket     = (searchParams.get("eloBracket") ?? "mid") as EloBracket;
 
   const empty: MatchupInfo = {
     winRate: null,
@@ -31,12 +31,27 @@ export async function GET(req: NextRequest) {
     bonusBracketLabel: null,
   };
 
-  if (!myChampion || !vsChampion || isWildcard(vsChampion)) {
+  // Only concrete (non-wildcard) champions can have matchup info
+  const concrete = vsChampionList.filter((vs) => !isWildcard(vs));
+  if (!myChampion || concrete.length === 0) {
     return NextResponse.json(empty);
   }
 
-  const winRate = await getMatchupWinRate(myChampion, vsChampion);
-  const counter = isCounterMatchup(winRate);
+  // Compute win rates for all concrete vsChampions, take the best counter
+  const rates = await Promise.allSettled(
+    concrete.map((vs) => getMatchupWinRate(myChampion, vs))
+  );
+
+  let bestWinRate: number | null = null;
+  for (const r of rates) {
+    if (r.status === "fulfilled" && r.value !== null) {
+      if (bestWinRate === null || r.value > bestWinRate) {
+        bestWinRate = r.value;
+      }
+    }
+  }
+
+  const counter = isCounterMatchup(bestWinRate);
 
   let bonusBracket: EloBracket | null = null;
   let bonusBracketLabel: string | null = null;
@@ -51,7 +66,7 @@ export async function GET(req: NextRequest) {
   }
 
   return NextResponse.json({
-    winRate,
+    winRate: bestWinRate,
     isCounter: counter,
     bonusBracket,
     bonusBracketLabel,

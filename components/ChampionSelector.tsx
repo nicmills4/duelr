@@ -83,7 +83,7 @@ export default function ChampionSelector({
 
   return (
     <div ref={ref} className="relative">
-      <label className="label">{label}</label>
+      {label && <label className="label">{label}</label>}
 
       <button
         type="button"

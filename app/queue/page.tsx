@@ -14,11 +14,17 @@ export default async function QueuePage() {
     <div className="max-w-6xl mx-auto px-4 py-10">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-white">Find a Match</h1>
+          <h1 className="text-2xl font-bold text-white font-display tracking-wide">
+            Specific <span className="text-amber-400">Matchups</span>
+          </h1>
           <p className="text-sm text-gray-400 mt-1">
-            Logged in as <span className="text-gold-400 font-medium">{session.user.riotId}</span>
+            Queue for specific champion matchups you want to practice.
+          </p>
+          <p className="text-xs text-gray-600 mt-1">
+            Logged in as{" "}
+            <span className="text-gold-400 font-medium">{session.user.riotId}</span>
             {" · "}
-            <span className="uppercase text-gray-500 text-xs">{session.user.region}</span>
+            <span className="uppercase">{session.user.region}</span>
           </p>
         </div>
         <LogoutButton />

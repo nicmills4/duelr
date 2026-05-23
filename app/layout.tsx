@@ -42,7 +42,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </a>
             <nav className="flex items-center gap-4 text-sm text-gray-400">
               <a href="/" className="hover:text-gold-400 transition-colors">Home</a>
-              <a href="/queue" className="hover:text-gold-400 transition-colors">Queue</a>
+              <a href="/queue" className="hover:text-gold-400 transition-colors">Specific Matchups</a>
               <a href="/lobby" className="hover:text-gold-400 transition-colors">Lobby</a>
               <a href="/leaderboard" className="hover:text-gold-400 transition-colors">Leaderboard</a>
             </nav>

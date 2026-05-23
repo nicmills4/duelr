@@ -6,41 +6,47 @@ import { getChampionType } from "@/lib/champion-cache";
 export const dynamic = "force-dynamic";
 
 /**
- * GET /api/queue/depth?myChampion=Darius&vsChampion=Jax&eloBracket=high
+ * GET /api/queue/depth?myChampion=Darius&vsChampion=Jax&vsChampion=Garen&eloBracket=high
  *
- * Returns how many players would instantly match with you if you joined
- * right now — i.e. the depth of all mirror/wildcard keys that accept you.
+ * vsChampion may be repeated for multi-champion queuing.
+ * Returns the total depth across all specified vsChampions.
  */
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
-  const myChampion = searchParams.get("myChampion") ?? "";
-  const vsChampion = searchParams.get("vsChampion") ?? "";
-  const eloBracket = searchParams.get("eloBracket") ?? "";
+  const myChampion    = searchParams.get("myChampion") ?? "";
+  const vsChampionList = searchParams.getAll("vsChampion");
+  const eloBracket    = searchParams.get("eloBracket") ?? "";
 
-  if (!myChampion || !vsChampion || !eloBracket) {
+  if (!myChampion || vsChampionList.length === 0 || !eloBracket) {
     return NextResponse.json({ depth: 0 });
   }
 
-  // Wildcards in vsChampion mean flexible opponent preference — depth can't
-  // be easily computed without scanning all keys, so skip it.
-  if (isWildcard(vsChampion)) {
+  // If all vsChampions are wildcards, flexible mode
+  if (vsChampionList.every(isWildcard)) {
     return NextResponse.json({ depth: null, flexible: true });
   }
 
   try {
-    // Exact mirror: someone playing vsChampion who wants myChampion
-    const exactKey = queueKey(eloBracket, vsChampion, myChampion);
-
-    // Wildcard keys: someone playing vsChampion who wants any / any of my type
-    const myType = await getChampionType(myChampion);
+    const myType        = await getChampionType(myChampion);
     const extraWildcards = myType ? wildcardKeysFor(myType) : ["_any"];
-    const wildcardKeys   = extraWildcards.map((w) => queueKey(eloBracket, vsChampion, w));
 
-    const counts = await Promise.all(
-      [exactKey, ...wildcardKeys].map((k) => redis.scard(k))
-    );
+    // For each concrete vsChampion, gather the keys to count
+    const keysToCount: string[] = [];
+    for (const vs of vsChampionList) {
+      if (isWildcard(vs)) continue;
+      keysToCount.push(
+        queueKey(eloBracket, vs, myChampion),
+        ...extraWildcards.map((w) => queueKey(eloBracket, vs, w))
+      );
+    }
 
-    const depth = counts.reduce((sum, n) => sum + n, 0);
+    if (keysToCount.length === 0) {
+      return NextResponse.json({ depth: null, flexible: true });
+    }
+
+    const counts = await Promise.all(keysToCount.map((k) => redis.scard(k)));
+    const depth  = counts.reduce((sum, n) => sum + n, 0);
+
     return NextResponse.json({ depth, flexible: false });
   } catch {
     return NextResponse.json({ depth: 0 });

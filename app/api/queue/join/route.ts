@@ -8,7 +8,7 @@ import { getMatchupWinRate, isCounterMatchup } from "@/lib/matchup";
 
 // DDragon champion IDs are alphanumeric, 1-50 chars (e.g. "Darius", "JarvanIV")
 const CHAMPION_RE     = /^[a-zA-Z0-9]{1,50}$/;
-const VALID_BRACKETS  = new Set<string>(BRACKET_ORDER); // includes "apex"
+const VALID_BRACKETS  = new Set<string>(BRACKET_ORDER);
 const VALID_WILDCARDS = new Set<string>(WILDCARDS);
 
 export async function POST(req: NextRequest) {
@@ -22,11 +22,25 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const { myChampion, vsChampion, eloBracket } = body;
+  const { myChampion, vsChampions, eloBracket } = body;
 
-  if (!myChampion || !vsChampion || !eloBracket) {
+  if (!myChampion || !eloBracket) {
     return NextResponse.json(
-      { error: "myChampion, vsChampion, and eloBracket are required" },
+      { error: "myChampion and eloBracket are required" },
+      { status: 400 }
+    );
+  }
+
+  if (!Array.isArray(vsChampions) || vsChampions.length === 0) {
+    return NextResponse.json(
+      { error: "vsChampions must be a non-empty array" },
+      { status: 400 }
+    );
+  }
+
+  if (vsChampions.length > 5) {
+    return NextResponse.json(
+      { error: "At most 5 vsChampions allowed" },
       { status: 400 }
     );
   }
@@ -37,12 +51,14 @@ export async function POST(req: NextRequest) {
       { status: 400 }
     );
   }
-  // vsChampion can be a real champion ID or a wildcard (_any, _any_melee, _any_ranged)
-  if (!CHAMPION_RE.test(vsChampion) && !VALID_WILDCARDS.has(vsChampion)) {
-    return NextResponse.json(
-      { error: "Invalid vsChampion value" },
-      { status: 400 }
-    );
+
+  for (const vs of vsChampions) {
+    if (!CHAMPION_RE.test(vs) && !VALID_WILDCARDS.has(vs)) {
+      return NextResponse.json(
+        { error: `Invalid vsChampion value: "${vs}"` },
+        { status: 400 }
+      );
+    }
   }
 
   if (!VALID_BRACKETS.has(eloBracket)) {
@@ -50,19 +66,23 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    // Check for counter matchup advantage (fail-open — never blocks queuing)
-    let counterBonus = false;
-    if (!isWildcard(vsChampion)) {
-      const wr = await getMatchupWinRate(myChampion, vsChampion);
-      counterBonus = isCounterMatchup(wr);
-    }
+    // Determine counter bonus for each specific vsChampion (fail-open)
+    const counterBonusFor = new Set<string>();
+    await Promise.allSettled(
+      vsChampions
+        .filter((vs) => !isWildcard(vs))
+        .map(async (vs) => {
+          const wr = await getMatchupWinRate(myChampion, vs);
+          if (isCounterMatchup(wr)) counterBonusFor.add(vs);
+        })
+    );
 
     const match = await joinQueueAndMatch(
       session.userId,
       myChampion,
-      vsChampion,
+      vsChampions as string[],
       eloBracket as EloBracket,
-      counterBonus
+      counterBonusFor
     );
 
     if (match) {

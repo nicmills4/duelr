@@ -34,15 +34,15 @@ model Session {
 }
 
 model QueueEntry {
-  id          String   @id @default(cuid())
-  userId      String   @unique
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  myChampion  String   // champion the user wants to play
-  vsChampion  String   // champion the user wants to face
-  eloBracket  String   // "low" | "mid" | "high" | "elite"
-  createdAt   DateTime @default(now())
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  myChampion   String   // champion the user wants to play
+  vsChampions  String   // JSON array e.g. '["Darius","Garen"]' or '["_any"]'
+  eloBracket   String   // "low" | "mid" | "high" | "elite" | "apex"
+  createdAt    DateTime @default(now())
 
-  @@index([myChampion, vsChampion, eloBracket])
+  @@index([myChampion, eloBracket])
 }
 
 model Match {
