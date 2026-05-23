@@ -4,6 +4,7 @@ import { Bebas_Neue, Exo_2 } from "next/font/google";
 import "./globals.css";
 import { getSession } from "@/lib/session";
 import NavLinks from "@/components/NavLinks";
+import AdBanner from "@/components/AdBanner";
 
 const bebasNeue = Bebas_Neue({
   weight: "400",
@@ -46,6 +47,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <NavLinks isLoggedIn={!!session} />
           </div>
         </header>
+        {/* AdBanner: shown to non-premium logged-in users */}
+        {session && !session.user.isPremium && <AdBanner />}
         <main>{children}</main>
       </body>
     </html>

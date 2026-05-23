@@ -16,11 +16,17 @@ model User {
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
-  sessions      Session[]
-  queueEntry    QueueEntry?
-  partnerPost   PartnerPost?
-  matchesAsA    Match[]     @relation("MatchPlayerA")
-  matchesAsB    Match[]     @relation("MatchPlayerB")
+  isPremium            Boolean  @default(false)
+  stripeCustomerId     String?  @unique
+  stripeSubscriptionId String?  @unique
+
+  sessions         Session[]
+  queueEntry       QueueEntry?
+  partnerPost      PartnerPost?
+  coachProfile     CoachProfile?
+  studentSessions  CoachingSession[] @relation("StudentSessions")
+  matchesAsA       Match[]     @relation("MatchPlayerA")
+  matchesAsB       Match[]     @relation("MatchPlayerB")
 }
 
 model Session {
@@ -59,6 +65,48 @@ model PartnerPost {
   updatedAt    DateTime @updatedAt
 
   @@index([eloBracket])
+}
+
+// ── Coaching ──────────────────────────────────────────────────────────────────
+
+model CoachProfile {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Short code shown instead of Riot ID before a session is booked (e.g. "A7F2")
+  displayCode  String   @unique
+  verifiedTier String   // "MASTER" | "GRANDMASTER" | "CHALLENGER"
+  champions    String   // JSON string[] — champion pool
+  specialties  String   // JSON string[] — matchups / roles they coach
+  hourlyRate   Int      // in cents, e.g. 3000 = $30/hr
+  bio          String?  // max 500 chars
+  availability String   // JSON string[] — time slot IDs
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  sessions     CoachingSession[] @relation("CoachSessions")
+
+  @@index([isActive])
+}
+
+model CoachingSession {
+  id              String       @id @default(cuid())
+  coachProfileId  String
+  coachProfile    CoachProfile @relation("CoachSessions", fields: [coachProfileId], references: [id])
+  studentId       String
+  student         User         @relation("StudentSessions", fields: [studentId], references: [id])
+  durationMinutes Int          // 30 | 60 | 90
+  rateAtBooking   Int          // hourlyRate in cents at booking time
+  totalCharged    Int          // student pays this (cents)
+  platformFee     Int          // 20% cut (cents)
+  stripeSessionId String?      // Stripe Checkout Session ID
+  status          String       @default("pending_payment") // "pending_payment" | "confirmed" | "completed" | "cancelled"
+  createdAt       DateTime     @default(now())
+
+  @@index([coachProfileId])
+  @@index([studentId])
+  @@index([status])
 }
 
 model Match {

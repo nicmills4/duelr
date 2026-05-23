@@ -1,5 +1,6 @@
 import { getSession } from "@/lib/session";
 import PartnerBoard from "@/components/PartnerBoard";
+import PremiumGate from "@/components/PremiumGate";
 import { Users2 } from "lucide-react";
 
 export const metadata = {
@@ -8,7 +9,9 @@ export const metadata = {
 };
 
 export default async function PartnersPage() {
-  const session = await getSession();
+  const session   = await getSession();
+  const isPremium = session?.user?.isPremium ?? false;
+  const isLoggedIn = !!session;
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-10">
@@ -26,10 +29,12 @@ export default async function PartnersPage() {
         </p>
       </div>
 
-      <PartnerBoard
-        userId={session?.userId ?? null}
-        riotId={session?.user.riotId ?? null}
-      />
+      <PremiumGate isPremium={isPremium} isLoggedIn={isLoggedIn}>
+        <PartnerBoard
+          userId={session?.userId ?? null}
+          riotId={session?.user.riotId ?? null}
+        />
+      </PremiumGate>
     </div>
   );
 }
