@@ -31,7 +31,7 @@ export default function LoginForm() {
         return;
       }
 
-      router.push("/queue");
+      router.push("/lobby");
       router.refresh();
     } catch {
       setError("Network error — please try again");

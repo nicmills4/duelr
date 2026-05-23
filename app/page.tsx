@@ -7,7 +7,7 @@ import PopularChampions from "@/components/PopularChampions";
 
 export default async function HomePage() {
   const session = await getSession();
-  if (session) redirect("/queue");
+  if (session) redirect("/lobby");
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-16">
