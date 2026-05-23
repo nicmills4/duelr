@@ -1,15 +1,13 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const [session, coaches, versionRes] = await Promise.all([
-      getSession(),
+    const [coaches, versionRes] = await Promise.all([
       prisma.coachProfile.findMany({
-        where:   { isActive: true },
+        where:   { isActive: true, isApproved: true },
         include: { user: { select: { riotId: true, region: true } } },
         orderBy: { createdAt: "desc" },
       }),
@@ -20,24 +18,21 @@ export async function GET() {
     const version  = versions[0];
     const imgBase  = `https://ddragon.leagueoflegends.com/cdn/${version}/img/champion`;
 
-    const myId = session?.userId ?? null;
-
     const results = coaches.map((c) => {
       const champIds: string[] = JSON.parse(c.champions);
       const specIds:  string[] = JSON.parse(c.specialties);
       const avail:    string[] = JSON.parse(c.availability);
 
       return {
-        id:            c.id,
+        id:           c.id,
         // Double-blind: never expose Riot ID here — only after a paid booking
-        displayCode:   c.displayCode,
-        verifiedTier:  c.verifiedTier,
-        hourlyRate:    c.hourlyRate,
-        bio:           c.bio,
-        availability:  avail,
-        champions:     champIds.map((id) => ({ id, imageUrl: `${imgBase}/${id}.png` })),
-        specialties:   specIds.map((id) => ({ id, imageUrl: `${imgBase}/${id}.png` })),
-        isOwn:         myId === c.userId,
+        displayCode:  c.displayCode,
+        verifiedTier: c.verifiedTier,
+        hourlyRate:   c.hourlyRate,
+        bio:          c.bio,
+        availability: avail,
+        champions:    champIds.map((id) => ({ id, imageUrl: `${imgBase}/${id}.png` })),
+        specialties:  specIds.map((id) => ({ id, imageUrl: `${imgBase}/${id}.png` })),
       };
     });
 

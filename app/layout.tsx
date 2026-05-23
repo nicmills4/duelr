@@ -47,8 +47,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <NavLinks isLoggedIn={!!session} />
           </div>
         </header>
-        {/* AdBanner: shown to non-premium logged-in users */}
-        {session && !session.user.isPremium && <AdBanner />}
+        {/* AdBanner: temporarily disabled until Stripe/Premium is live */}
+        {/* {session && !session.user.isPremium && <AdBanner />} */}
         <main>{children}</main>
       </body>
     </html>

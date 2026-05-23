@@ -82,12 +82,14 @@ model CoachProfile {
   bio          String?  // max 500 chars
   availability String   // JSON string[] — time slot IDs
   isActive     Boolean  @default(true)
+  // Manually approved by the site owner via scripts/manage-coaches.ts
+  isApproved   Boolean  @default(false)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   sessions     CoachingSession[] @relation("CoachSessions")
 
-  @@index([isActive])
+  @@index([isActive, isApproved])
 }
 
 model CoachingSession {

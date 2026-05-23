@@ -3,38 +3,51 @@
 import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import {
-  Shield, Star, Clock, Loader2, CheckCircle2,
-  Pencil, Trash2, Plus, X, ChevronDown,
+  Shield, Star, Clock, Loader2, CheckCircle2, X,
 } from "lucide-react";
 import { AVAILABILITY_SLOTS } from "@/lib/partner-types";
-import type { Champion } from "@/app/api/champions/route";
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+interface ChampEntry { id: string; imageUrl: string }
+
+interface CoachData {
+  id:           string;
+  displayCode:  string;
+  verifiedTier: string;
+  hourlyRate:   number;
+  bio:          string | null;
+  availability: string[];
+  champions:    ChampEntry[];
+  specialties:  ChampEntry[];
+}
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const TIER_BADGE: Record<string, string> = {
-  MASTER:       "bg-purple-900/50 text-purple-300 border-purple-700/40",
-  GRANDMASTER:  "bg-red-900/50    text-red-300    border-red-700/40",
-  CHALLENGER:   "bg-gold-400/10   text-gold-400   border-gold-400/25",
+  MASTER:      "bg-purple-900/50 text-purple-300 border-purple-700/40",
+  GRANDMASTER: "bg-red-900/50    text-red-300    border-red-700/40",
+  CHALLENGER:  "bg-gold-400/10   text-gold-400   border-gold-400/25",
 };
 
 const DURATION_OPTIONS = [
-  { minutes: 30,  label: "30 min" },
-  { minutes: 60,  label: "1 hour" },
-  { minutes: 90,  label: "90 min" },
+  { minutes: 30, label: "30 min" },
+  { minutes: 60, label: "1 hour" },
+  { minutes: 90, label: "90 min" },
 ];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function centsToDisplay(cents: number): string {
+function centsToDisplay(cents: number) {
   return `$${(cents / 100).toFixed(0)}/hr`;
 }
 
-function sessionPrice(hourlyRate: number, minutes: number): string {
+function sessionPrice(hourlyRate: number, minutes: number) {
   const total = Math.round((hourlyRate * minutes) / 60);
   return `$${(total / 100).toFixed(2)}`;
 }
 
-interface ChampEntry { id: string; imageUrl: string }
+// ── Champion strip ────────────────────────────────────────────────────────────
 
 function ChampStrip({ champs, max = 8 }: { champs: ChampEntry[]; max?: number }) {
   const shown    = champs.slice(0, max);
@@ -52,36 +65,12 @@ function ChampStrip({ champs, max = 8 }: { champs: ChampEntry[]; max?: number })
 
 // ── Coach card ────────────────────────────────────────────────────────────────
 
-interface CoachData {
-  id: string;
-  displayCode: string;
-  verifiedTier: string;
-  hourlyRate: number;
-  bio: string | null;
-  availability: string[];
-  champions: ChampEntry[];
-  specialties: ChampEntry[];
-  isOwn: boolean;
-}
-
-function CoachCard({
-  coach,
-  onBook,
-  onEdit,
-  onDelete,
-  isOwn,
-}: {
-  coach: CoachData;
-  onBook: () => void;
-  onEdit: () => void;
-  onDelete: () => void;
-  isOwn: boolean;
-}) {
+function CoachCard({ coach, onBook }: { coach: CoachData; onBook: () => void }) {
   const badge = TIER_BADGE[coach.verifiedTier] ?? "bg-dark-700 text-gray-400 border-dark-600";
   const avail = AVAILABILITY_SLOTS.filter((s) => coach.availability.includes(s.id));
 
   return (
-    <div className={`card space-y-3 ${isOwn ? "ring-1 ring-gold-400/30" : ""}`}>
+    <div className="card space-y-3">
       {/* Header */}
       <div className="flex items-start justify-between">
         <div className="space-y-1">
@@ -93,7 +82,6 @@ function CoachCard({
             {coach.verifiedTier.charAt(0) + coach.verifiedTier.slice(1).toLowerCase()} · Verified
           </span>
         </div>
-
         <div className="text-right">
           <p className="font-bold text-gold-400 text-lg">{centsToDisplay(coach.hourlyRate)}</p>
         </div>
@@ -133,26 +121,12 @@ function CoachCard({
         </p>
       )}
 
-      {/* Actions */}
-      {isOwn ? (
-        <div className="flex gap-2 pt-1">
-          <button onClick={onEdit}
-            className="flex-1 flex items-center justify-center gap-1.5 text-xs btn-secondary">
-            <Pencil className="w-3 h-3" /> Edit Profile
-          </button>
-          <button onClick={onDelete}
-            className="flex items-center gap-1.5 text-xs text-red-400 hover:text-red-300 border border-red-500/20 hover:border-red-400/40 bg-red-500/5 hover:bg-red-500/10 rounded-lg px-3 py-2 transition-colors">
-            <Trash2 className="w-3 h-3" />
-          </button>
-        </div>
-      ) : (
-        <button
-          onClick={onBook}
-          className="btn-primary w-full flex items-center justify-center gap-2 text-sm"
-        >
-          <Star className="w-3.5 h-3.5" /> Book a Session
-        </button>
-      )}
+      <button
+        onClick={onBook}
+        className="btn-primary w-full flex items-center justify-center gap-2 text-sm"
+      >
+        <Star className="w-3.5 h-3.5" /> Book a Session
+      </button>
     </div>
   );
 }
@@ -160,9 +134,9 @@ function CoachCard({
 // ── Book modal ────────────────────────────────────────────────────────────────
 
 function BookModal({ coach, onClose }: { coach: CoachData; onClose: () => void }) {
-  const [duration,  setDuration]  = useState(60);
-  const [loading,   setLoading]   = useState(false);
-  const [err,       setErr]       = useState("");
+  const [duration, setDuration] = useState(60);
+  const [loading,  setLoading]  = useState(false);
+  const [err,      setErr]      = useState("");
 
   async function book() {
     setLoading(true); setErr("");
@@ -250,187 +224,6 @@ function BookModal({ coach, onClose }: { coach: CoachData; onClose: () => void }
   );
 }
 
-// ── Coach profile form ────────────────────────────────────────────────────────
-
-interface FormState {
-  champions:    string[];
-  specialties:  string[];
-  hourlyRate:   string;
-  bio:          string;
-  availability: string[];
-}
-
-function CoachForm({
-  champions: allChampions,
-  initial,
-  onSave,
-  onCancel,
-}: {
-  champions: Champion[];
-  initial?: FormState;
-  onSave: (data: FormState) => Promise<void>;
-  onCancel: () => void;
-}) {
-  const [form,    setForm]    = useState<FormState>(initial ?? {
-    champions: [], specialties: [], hourlyRate: "", bio: "", availability: [],
-  });
-  const [saving,  setSaving]  = useState(false);
-  const [err,     setErr]     = useState("");
-  const [champQ,  setChampQ]  = useState("");
-  const [specQ,   setSpecQ]   = useState("");
-
-  function toggleAvail(id: string) {
-    setForm((f) => ({
-      ...f,
-      availability: f.availability.includes(id)
-        ? f.availability.filter((a) => a !== id)
-        : [...f.availability, id],
-    }));
-  }
-
-  function ChampPicker({
-    field,
-    query,
-    setQuery,
-  }: { field: "champions" | "specialties"; query: string; setQuery: (q: string) => void }) {
-    const excluded = [...form.champions, ...form.specialties];
-    const filtered = allChampions.filter(
-      (c) => !excluded.includes(c.id) && c.name.toLowerCase().includes(query.toLowerCase())
-    );
-    return (
-      <div className="relative">
-        <input className="input w-full text-sm" placeholder="Search champion…"
-          value={query} onChange={(e) => setQuery(e.target.value)} />
-        {query && filtered.length > 0 && (
-          <div className="absolute z-10 top-full mt-1 left-0 right-0 bg-dark-800 border border-dark-600 rounded-lg shadow-xl max-h-40 overflow-y-auto">
-            {filtered.slice(0, 15).map((c) => (
-              <button key={c.id} type="button"
-                onMouseDown={() => {
-                  setForm((f) => ({ ...f, [field]: [...f[field], c.id] }));
-                  setQuery("");
-                }}
-                className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-300 hover:bg-dark-700 hover:text-white transition-colors">
-                <Image src={c.imageUrl} alt={c.name} width={22} height={22} className="rounded-sm" />
-                {c.name}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    if (form.champions.length === 0) { setErr("Add at least one champion you play."); return; }
-    setSaving(true); setErr("");
-    try { await onSave(form); } catch (e) { setErr(e instanceof Error ? e.message : "Failed"); }
-    finally { setSaving(false); }
-  }
-
-  return (
-    <form onSubmit={submit} className="card border border-gold-400/20 space-y-5">
-      <h3 className="font-bold text-white text-base">Coach Profile</h3>
-
-      {/* Champions I play */}
-      <div>
-        <label className="label">Champions I play</label>
-        <div className="flex flex-wrap gap-2 mb-2">
-          {form.champions.map((id) => {
-            const c = allChampions.find((ch) => ch.id === id);
-            return (
-              <div key={id} className="flex items-center gap-1.5 bg-dark-700 border border-dark-600 rounded-lg px-2 py-1 text-xs">
-                {c && <Image src={c.imageUrl} alt={c.name} width={16} height={16} className="rounded-sm" />}
-                <span className="text-gray-200">{c?.name ?? id}</span>
-                <button type="button" onClick={() => setForm((f) => ({ ...f, champions: f.champions.filter((v) => v !== id) }))}
-                  className="text-gray-600 hover:text-gray-300 ml-0.5"><X className="w-3 h-3" /></button>
-              </div>
-            );
-          })}
-        </div>
-        {form.champions.length < 15 && <ChampPicker field="champions" query={champQ} setQuery={setChampQ} />}
-      </div>
-
-      {/* Matchups I coach */}
-      <div>
-        <label className="label">Matchups / champions I coach <span className="text-gray-600 font-normal">(optional)</span></label>
-        <div className="flex flex-wrap gap-2 mb-2">
-          {form.specialties.map((id) => {
-            const c = allChampions.find((ch) => ch.id === id);
-            return (
-              <div key={id} className="flex items-center gap-1.5 bg-dark-700 border border-dark-600 rounded-lg px-2 py-1 text-xs">
-                {c && <Image src={c.imageUrl} alt={c.name} width={16} height={16} className="rounded-sm" />}
-                <span className="text-gray-200">{c?.name ?? id}</span>
-                <button type="button" onClick={() => setForm((f) => ({ ...f, specialties: f.specialties.filter((v) => v !== id) }))}
-                  className="text-gray-600 hover:text-gray-300 ml-0.5"><X className="w-3 h-3" /></button>
-              </div>
-            );
-          })}
-        </div>
-        {form.specialties.length < 15 && <ChampPicker field="specialties" query={specQ} setQuery={setSpecQ} />}
-      </div>
-
-      {/* Rate */}
-      <div>
-        <label className="label">Hourly rate (USD)</label>
-        <div className="relative">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">$</span>
-          <input
-            className="input w-full text-sm pl-7"
-            type="number" min="5" max="500" step="1" placeholder="30"
-            value={form.hourlyRate}
-            onChange={(e) => setForm((f) => ({ ...f, hourlyRate: e.target.value }))}
-          />
-          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-600 text-xs">/hr</span>
-        </div>
-        <p className="text-xs text-gray-600 mt-1">You keep 80% after Duelr&apos;s 20% platform fee.</p>
-      </div>
-
-      {/* Availability */}
-      <div>
-        <label className="label">Availability</label>
-        <div className="flex flex-wrap gap-2">
-          {AVAILABILITY_SLOTS.map((s) => {
-            const active = form.availability.includes(s.id);
-            return (
-              <button key={s.id} type="button" onClick={() => toggleAvail(s.id)}
-                className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs transition-all ${
-                  active
-                    ? "border-gold-400 bg-gold-400/10 text-gold-400"
-                    : "border-dark-600 text-gray-400 hover:border-gray-500"
-                }`}>
-                <span className="font-medium">{s.label}</span>
-                <span className="opacity-60">{s.desc}</span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Bio */}
-      <div>
-        <div className="flex justify-between mb-1">
-          <label className="label mb-0">Bio <span className="text-gray-600 font-normal">(optional)</span></label>
-          <span className="text-xs text-gray-600">{form.bio.length}/500</span>
-        </div>
-        <textarea className="input w-full resize-none text-sm" rows={3} maxLength={500}
-          placeholder="e.g. Challenger Irelia/Fiora main. I specialize in top-lane matchup mechanics and wave management."
-          value={form.bio} onChange={(e) => setForm((f) => ({ ...f, bio: e.target.value }))} />
-      </div>
-
-      {err && <p className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{err}</p>}
-
-      <div className="flex gap-2">
-        <button type="submit" disabled={saving} className="btn-primary flex-1 flex items-center justify-center gap-2">
-          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-          {saving ? "Saving…" : "Save Profile"}
-        </button>
-        <button type="button" onClick={onCancel} className="btn-secondary px-5">Cancel</button>
-      </div>
-    </form>
-  );
-}
-
 // ── Main board ────────────────────────────────────────────────────────────────
 
 interface Props {
@@ -440,14 +233,9 @@ interface Props {
 
 export default function CoachBoard({ userId, bookedId }: Props) {
   const [coaches,     setCoaches]     = useState<CoachData[]>([]);
-  const [champions,   setChampions]   = useState<Champion[]>([]);
   const [loading,     setLoading]     = useState(true);
-  const [formOpen,    setFormOpen]    = useState(false);
   const [bookTarget,  setBookTarget]  = useState<CoachData | null>(null);
-  const [deleting,    setDeleting]    = useState(false);
   const [bookedCoach, setBookedCoach] = useState<{ riotId: string; displayCode: string } | null>(null);
-
-  const myProfile = coaches.find((c) => c.isOwn) ?? null;
 
   const load = useCallback(() => {
     fetch("/api/coaching/coaches")
@@ -457,14 +245,9 @@ export default function CoachBoard({ userId, bookedId }: Props) {
       .finally(() => setLoading(false));
   }, []);
 
-  useEffect(() => {
-    load();
-    fetch("/api/champions")
-      .then((r) => r.json())
-      .then((d) => setChampions(d.champions ?? []));
-  }, [load]);
+  useEffect(() => { load(); }, [load]);
 
-  // Show confirmed booking reveal
+  // Reveal coach Riot ID after confirmed booking
   useEffect(() => {
     if (!bookedId) return;
     fetch(`/api/coaching/session/${bookedId}`)
@@ -474,46 +257,6 @@ export default function CoachBoard({ userId, bookedId }: Props) {
       })
       .catch(() => {});
   }, [bookedId]);
-
-  async function handleSave(data: FormState) {
-    const res = await fetch("/api/coaching/profile", {
-      method:  "POST",
-      headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({
-        champions:    data.champions,
-        specialties:  data.specialties,
-        hourlyRate:   Number(data.hourlyRate),
-        bio:          data.bio,
-        availability: data.availability,
-      }),
-    });
-    if (!res.ok) {
-      const d = await res.json();
-      throw new Error(d.error ?? "Save failed");
-    }
-    setFormOpen(false);
-    load();
-  }
-
-  async function handleDelete() {
-    if (!confirm("Remove your coach profile?")) return;
-    setDeleting(true);
-    await fetch("/api/coaching/profile", { method: "DELETE" });
-    setDeleting(false);
-    load();
-  }
-
-  function profileToForm(p: CoachData): FormState {
-    return {
-      champions:    p.champions.map((c) => c.id),
-      specialties:  p.specialties.map((c) => c.id),
-      hourlyRate:   String(p.hourlyRate / 100),
-      bio:          p.bio ?? "",
-      availability: p.availability,
-    };
-  }
-
-  const others = coaches.filter((c) => !c.isOwn);
 
   return (
     <div className="space-y-6">
@@ -538,52 +281,14 @@ export default function CoachBoard({ userId, bookedId }: Props) {
         </div>
       )}
 
-      {/* CTA */}
-      {userId && !formOpen && (
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-gray-500">
-            {myProfile
-              ? "Your profile is live. Students can book you."
-              : "Masters or above? List yourself as a coach."}
-          </p>
-          {myProfile ? (
-            <div className="flex gap-2">
-              <button onClick={() => setFormOpen(true)}
-                className="btn-secondary flex items-center gap-1.5 text-sm">
-                <Pencil className="w-3.5 h-3.5" /> Edit Profile
-              </button>
-              <button onClick={handleDelete} disabled={deleting}
-                className="flex items-center gap-1.5 text-sm text-red-400 hover:text-red-300 border border-red-500/20 bg-red-500/5 rounded-lg px-3 py-2 transition-colors">
-                {deleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-              </button>
-            </div>
-          ) : (
-            <button onClick={() => setFormOpen(true)}
-              className="btn-primary flex items-center gap-2">
-              <Plus className="w-4 h-4" /> List as Coach
-            </button>
-          )}
-        </div>
-      )}
-
       {!userId && (
-        <p className="text-center text-sm text-gray-500 py-4">
+        <p className="text-center text-sm text-gray-500 py-2">
           <a href="/" className="text-gold-400 hover:underline font-medium">Connect your account</a>
-          {" "}to book a coach or list yourself.
+          {" "}to book a session.
         </p>
       )}
 
-      {/* Form */}
-      {formOpen && (
-        <CoachForm
-          champions={champions}
-          initial={myProfile ? profileToForm(myProfile) : undefined}
-          onSave={handleSave}
-          onCancel={() => setFormOpen(false)}
-        />
-      )}
-
-      {/* Grid */}
+      {/* Coach grid */}
       {loading ? (
         <div className="flex items-center justify-center py-16 text-gray-600">
           <Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading coaches…
@@ -591,36 +296,17 @@ export default function CoachBoard({ userId, bookedId }: Props) {
       ) : coaches.length === 0 ? (
         <div className="text-center py-16 space-y-3">
           <Shield className="w-10 h-10 text-gray-700 mx-auto" />
-          <p className="text-gray-500">No coaches listed yet.</p>
-          {userId && <p className="text-sm text-gray-600">
-            Masters+? <button onClick={() => setFormOpen(true)} className="text-gold-400 hover:underline">Be the first.</button>
-          </p>}
+          <p className="text-gray-500">No coaches available yet — check back soon.</p>
         </div>
       ) : (
-        <div>
-          {myProfile && !formOpen && (
-            <div className="mb-6">
-              <p className="text-xs text-gold-400 font-semibold uppercase tracking-wide mb-2">Your Profile</p>
-              <CoachCard coach={myProfile} isOwn onEdit={() => setFormOpen(true)} onDelete={handleDelete} onBook={() => {}} />
-            </div>
-          )}
-          {others.length > 0 && (
-            <>
-              {myProfile && <p className="text-xs text-gray-600 uppercase tracking-wide mb-3">Available Coaches ({others.length})</p>}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {others.map((coach) => (
-                  <CoachCard
-                    key={coach.id}
-                    coach={coach}
-                    isOwn={false}
-                    onEdit={() => {}}
-                    onDelete={() => {}}
-                    onBook={() => userId ? setBookTarget(coach) : (window.location.href = "/")}
-                  />
-                ))}
-              </div>
-            </>
-          )}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {coaches.map((coach) => (
+            <CoachCard
+              key={coach.id}
+              coach={coach}
+              onBook={() => userId ? setBookTarget(coach) : (window.location.href = "/")}
+            />
+          ))}
         </div>
       )}
 
