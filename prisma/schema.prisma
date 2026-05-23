@@ -16,10 +16,11 @@ model User {
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
-  sessions   Session[]
-  queueEntry QueueEntry?
-  matchesAsA Match[]   @relation("MatchPlayerA")
-  matchesAsB Match[]   @relation("MatchPlayerB")
+  sessions      Session[]
+  queueEntry    QueueEntry?
+  partnerPost   PartnerPost?
+  matchesAsA    Match[]     @relation("MatchPlayerA")
+  matchesAsB    Match[]     @relation("MatchPlayerB")
 }
 
 model Session {
@@ -43,6 +44,21 @@ model QueueEntry {
   createdAt    DateTime @default(now())
 
   @@index([myChampion, eloBracket])
+}
+
+model PartnerPost {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  myChampions  String   // JSON string[] — champions the poster plays
+  vsChampions  String   // JSON string[] — champions they want to face
+  eloBracket   String   // "low" | "mid" | "high" | "elite" | "apex"
+  availability String   // JSON string[] — e.g. ["evening","weekends"]
+  notes        String?  // optional free-text, max 300 chars
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([eloBracket])
 }
 
 model Match {
