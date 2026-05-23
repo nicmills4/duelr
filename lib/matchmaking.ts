@@ -48,11 +48,14 @@ function parseVsChampions(raw: string): string[] {
  * counterBonusFor: a set of vsChampion IDs where the caller has a >51% WR
  * advantage; for those, the search is extended to include the next elo bracket.
  */
+/** Special elo value meaning "match any skill level". */
+export const ANY_ELO = "any";
+
 export async function joinQueueAndMatch(
   userId: string,
   myChampion: string,
   vsChampions: string[],
-  eloBracket: EloBracket,
+  eloBracket: EloBracket | "any",
   counterBonusFor: Set<string> = new Set()
 ): Promise<MatchResult | null> {
   const vsJson = JSON.stringify(vsChampions);
@@ -87,12 +90,16 @@ export async function joinQueueAndMatch(
   }
 
   // ── Build the complete list of opponent keys to scan ──────────────────────
-  // For each specific vsChampion, we look for:
-  //   - exact:    queue:{elo}:{vsChamp}:{myChamp}
-  //   - wildcard: queue:{elo}:{vsChamp}:{_any|_any_melee|_any_ranged}
-  //   - counter:  same keys one bracket higher
+  // "any" elo players check every specific bracket + the "any" bucket.
+  // Specific elo players check their bracket + the "any" bucket (picks up
+  // players who said they don't care about skill level).
   const myType   = await getChampionType(myChampion);
   const wildcards = myType ? wildcardKeysFor(myType) : ["_any" as const];
+
+  const bracketsToScan: string[] =
+    eloBracket === ANY_ELO
+      ? [...BRACKET_ORDER, ANY_ELO]          // search everywhere
+      : [eloBracket, ANY_ELO];               // own bracket + any-elo waiters
 
   interface KeyToCheck { key: string; vsChampion: string }
   const keysToCheck: KeyToCheck[] = [];
@@ -100,13 +107,16 @@ export async function joinQueueAndMatch(
   for (const vs of vsChampions) {
     if (isWildcard(vs)) continue; // wildcards just wait passively
 
-    keysToCheck.push(
-      { key: queueKey(eloBracket, vs, myChampion), vsChampion: vs },
-      ...wildcards.map((w) => ({ key: queueKey(eloBracket, vs, w), vsChampion: vs }))
-    );
+    for (const bracket of bracketsToScan) {
+      keysToCheck.push(
+        { key: queueKey(bracket, vs, myChampion), vsChampion: vs },
+        ...wildcards.map((w) => ({ key: queueKey(bracket, vs, w), vsChampion: vs }))
+      );
+    }
 
-    if (counterBonusFor.has(vs)) {
-      const nextBracket = nextEloBracket(eloBracket);
+    // Counter bonus: search one bracket higher (irrelevant for "any" — already covers all)
+    if (eloBracket !== ANY_ELO && counterBonusFor.has(vs)) {
+      const nextBracket = nextEloBracket(eloBracket as EloBracket);
       if (nextBracket) {
         keysToCheck.push(
           { key: queueKey(nextBracket, vs, myChampion), vsChampion: vs },

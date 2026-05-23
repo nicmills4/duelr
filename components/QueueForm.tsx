@@ -194,7 +194,7 @@ export default function QueueForm({ riotId }: Props) {
     const vs = searchParams.get("vs");
     return vs ? [vs] : [];
   });
-  const [eloBracket,  setEloBracket]  = useState<EloBracket>("mid");
+  const [eloBracket,  setEloBracket]  = useState<EloBracket | "any">("mid");
   const [rankInfo,    setRankInfo]    = useState<RankInfo | null>(null);
   const [rankLoading, setRankLoading] = useState(true);
   const [state,       setState]       = useState<QueueState>("idle");
@@ -248,6 +248,7 @@ export default function QueueForm({ riotId }: Props) {
         if (d.error || !d.maxBracket) return;
         setRankInfo(d);
         setEloBracket((current) => {
+          if (current === "any") return current; // "any" is never locked
           const maxIdx = BRACKET_ORDER.indexOf(d.maxBracket);
           const curIdx = BRACKET_ORDER.indexOf(current);
           return curIdx > maxIdx ? d.maxBracket : current;
@@ -542,10 +543,12 @@ export default function QueueForm({ riotId }: Props) {
             <div className="flex items-center gap-1.5 text-xs text-amber-400">
               <ShieldCheck className="w-3 h-3" />
               <span>
-                Counter advantage · searching{" "}
-                {matchupInfo.bonusBracketLabel
-                  ? `${ELO_BRACKETS.find((b) => b.value === eloBracket)?.label} + ${matchupInfo.bonusBracketLabel}`
-                  : "expanded pool"}
+                Counter advantage ·{" "}
+                {eloBracket === "any"
+                  ? "searching all skill levels"
+                  : matchupInfo.bonusBracketLabel
+                    ? `searching ${ELO_BRACKETS.find((b) => b.value === eloBracket)?.label} + ${matchupInfo.bonusBracketLabel}`
+                    : "expanded pool"}
               </span>
             </div>
           )}
@@ -714,6 +717,20 @@ export default function QueueForm({ riotId }: Props) {
           )}
         </div>
         <div className="grid grid-cols-2 gap-2">
+          {/* Any Elo — full-width, no rank lock */}
+          <button
+            type="button"
+            onClick={() => setEloBracket("any")}
+            className={`col-span-2 relative rounded-lg border p-3 text-left transition-all ${
+              eloBracket === "any"
+                ? "border-gold-400 bg-gold-400/10 text-gold-400"
+                : "border-dark-600 hover:border-gray-500 text-gray-300"
+            }`}
+          >
+            <div className="font-semibold text-sm">Any Elo</div>
+            <div className="text-xs opacity-70">Match against any skill level — fastest queue</div>
+          </button>
+
           {ELO_BRACKETS.map((b) => {
             const maxIdx = rankInfo ? BRACKET_ORDER.indexOf(rankInfo.maxBracket) : BRACKET_ORDER.length - 1;
             const bIdx   = BRACKET_ORDER.indexOf(b.value as EloBracket);

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
-import { joinQueueAndMatch } from "@/lib/matchmaking";
+import { joinQueueAndMatch, ANY_ELO } from "@/lib/matchmaking";
 import { WILDCARDS, isWildcard } from "@/lib/champion-types";
 import { BRACKET_ORDER } from "@/lib/constants";
 import type { EloBracket } from "@/lib/constants";
@@ -8,7 +8,7 @@ import { getMatchupWinRate, isCounterMatchup } from "@/lib/matchup";
 
 // DDragon champion IDs are alphanumeric, 1-50 chars (e.g. "Darius", "JarvanIV")
 const CHAMPION_RE     = /^[a-zA-Z0-9]{1,50}$/;
-const VALID_BRACKETS  = new Set<string>(BRACKET_ORDER);
+const VALID_BRACKETS  = new Set<string>([...BRACKET_ORDER, ANY_ELO]);
 const VALID_WILDCARDS = new Set<string>(WILDCARDS);
 
 export async function POST(req: NextRequest) {
@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
       session.userId,
       myChampion,
       vsChampions as string[],
-      eloBracket as EloBracket,
+      eloBracket as EloBracket | "any",
       counterBonusFor
     );
 
