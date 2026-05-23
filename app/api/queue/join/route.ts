@@ -5,6 +5,7 @@ import { WILDCARDS, isWildcard } from "@/lib/champion-types";
 import { BRACKET_ORDER } from "@/lib/constants";
 import type { EloBracket } from "@/lib/constants";
 import { getMatchupWinRate, isCounterMatchup } from "@/lib/matchup";
+import { leaveLobby } from "@/lib/lobby";
 
 // DDragon champion IDs are alphanumeric, 1-50 chars (e.g. "Darius", "JarvanIV")
 const CHAMPION_RE     = /^[a-zA-Z0-9]{1,50}$/;
@@ -66,6 +67,9 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    // Leave the lobby if they were available there (mutual exclusivity)
+    await leaveLobby(session.userId).catch(() => {});
+
     // Determine counter bonus for each specific vsChampion (fail-open)
     const counterBonusFor = new Set<string>();
     await Promise.allSettled(
