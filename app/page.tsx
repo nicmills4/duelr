@@ -1,7 +1,7 @@
 import { getSession } from "@/lib/session";
 import { redirect } from "next/navigation";
 import LoginForm from "@/components/LoginForm";
-import { Swords, Users, Zap } from "lucide-react";
+import { Swords, Users, Zap, ShieldCheck } from "lucide-react";
 import LivePlayerCount from "@/components/LivePlayerCount";
 import PopularChampions from "@/components/PopularChampions";
 
@@ -28,9 +28,25 @@ export default async function HomePage() {
 
       <div className="grid md:grid-cols-2 gap-8 items-start mt-10">
         {/* Login card */}
-        <div className="card">
-          <h2 className="text-xl font-bold mb-6 text-white">Connect Your Account</h2>
-          <LoginForm />
+        <div className="space-y-4">
+          <div className="card">
+            <h2 className="text-xl font-bold mb-6 text-white">Connect Your Account</h2>
+            <LoginForm />
+          </div>
+
+          {/* Security disclaimer */}
+          <div className="flex items-start gap-3 bg-emerald-500/5 border border-emerald-500/20 rounded-xl px-4 py-4 text-sm">
+            <ShieldCheck className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-emerald-400 mb-1">Zero compromise risk — your account stays yours.</p>
+              <p className="text-gray-400 leading-relaxed">
+                Duelr does <span className="text-gray-200 font-medium">not</span> ask for your Riot password
+                and has no access to your account. You simply enter your Riot ID
+                (e.g. <span className="text-gray-300">Faker#KR1</span>) — it&apos;s used only
+                to look up your rank and show your name to matched opponents. Nothing is stored beyond your public summoner info.
+              </p>
+            </div>
+          </div>
         </div>
 
         {/* Feature highlights */}

@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Script from "next/script";
 import { Bebas_Neue, Exo_2 } from "next/font/google";
 import "./globals.css";
+import { getSession } from "@/lib/session";
+import NavLinks from "@/components/NavLinks";
 
 const bebasNeue = Bebas_Neue({
   weight: "400",
@@ -22,7 +24,8 @@ export const metadata: Metadata = {
   description: "Find your perfect 1v1 practice match in League of Legends",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const session = await getSession();
   return (
     <html lang="en" className={`dark ${bebasNeue.variable} ${exo2.variable}`}>
       <body className="min-h-screen bg-dark-900 font-sans">
@@ -40,12 +43,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <span className="font-display text-2xl tracking-wide"><span className="text-amber-400">Duel</span><span className="text-white">r</span></span>
               <span className="text-xs text-gray-500 ml-1">1v1</span>
             </a>
-            <nav className="flex items-center gap-4 text-sm text-gray-400">
-              <a href="/" className="hover:text-gold-400 transition-colors">Home</a>
-              <a href="/queue" className="hover:text-gold-400 transition-colors">Specific Matchups</a>
-              <a href="/lobby" className="hover:text-gold-400 transition-colors">Lobby</a>
-              <a href="/leaderboard" className="hover:text-gold-400 transition-colors">Leaderboard</a>
-            </nav>
+            <NavLinks isLoggedIn={!!session} />
           </div>
         </header>
         <main>{children}</main>
