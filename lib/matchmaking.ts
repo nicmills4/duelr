@@ -3,6 +3,7 @@ import { prisma } from "./prisma";
 import { isWildcard, wildcardKeysFor } from "./champion-types";
 import { getChampionType } from "./champion-cache";
 export type { EloBracket } from "./constants";
+import { BRACKET_ORDER } from "./constants";
 import type { EloBracket } from "./constants";
 
 export interface MatchResult {
@@ -27,11 +28,26 @@ export interface MatchResult {
  * both users' match channels, and returns the MatchResult for the caller.
  * On no match: adds the caller to the queue and returns null.
  */
+/** Returns the bracket one step above the given one, or null if already apex. */
+function nextEloBracket(bracket: EloBracket): EloBracket | null {
+  const idx = BRACKET_ORDER.indexOf(bracket);
+  return idx >= 0 && idx < BRACKET_ORDER.length - 1
+    ? BRACKET_ORDER[idx + 1]
+    : null;
+}
+
+/**
+ * @param counterBonus  When true and vsChampion is a concrete champion (not a
+ *                      wildcard), the search is expanded to also include the
+ *                      next elo bracket up. Use when myChampion has a >51%
+ *                      win-rate advantage into vsChampion.
+ */
 export async function joinQueueAndMatch(
   userId: string,
   myChampion: string,
   vsChampion: string,
-  eloBracket: EloBracket
+  eloBracket: EloBracket,
+  counterBonus = false
 ): Promise<MatchResult | null> {
   const myKey = queueKey(eloBracket, myChampion, vsChampion);
 
@@ -64,12 +80,24 @@ export async function joinQueueAndMatch(
   //   - exact:    they play vsChampion, they want myChampion
   //   - _any:     they play vsChampion, they want any opponent
   //   - _any_X:   they play vsChampion, they want any opponent of my attack type
-  const exactKey = queueKey(eloBracket, vsChampion, myChampion);
-  const myType   = await getChampionType(myChampion); // null on DDragon error
-  const extraKeys = (myType ? wildcardKeysFor(myType) : ["_any"]).map(
-    (w) => queueKey(eloBracket, vsChampion, w)
-  );
-  const keysToCheck = [exactKey, ...extraKeys];
+  const exactKey  = queueKey(eloBracket, vsChampion, myChampion);
+  const myType    = await getChampionType(myChampion); // null on DDragon error
+  const wildcards = myType ? wildcardKeysFor(myType) : ["_any" as const];
+  const extraKeys = wildcards.map((w) => queueKey(eloBracket, vsChampion, w));
+
+  // Counter-bonus: also scan the next bracket up for concrete matchups only
+  const bonusKeys: string[] = [];
+  if (counterBonus && !isWildcard(vsChampion)) {
+    const nextBracket = nextEloBracket(eloBracket);
+    if (nextBracket) {
+      bonusKeys.push(
+        queueKey(nextBracket, vsChampion, myChampion),
+        ...wildcards.map((w) => queueKey(nextBracket, vsChampion, w))
+      );
+    }
+  }
+
+  const keysToCheck = [exactKey, ...extraKeys, ...bonusKeys];
 
   // ── Try each key; first atomic claim wins ─────────────────────────────────
   for (const checkKey of keysToCheck) {

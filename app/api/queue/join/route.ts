@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { joinQueueAndMatch } from "@/lib/matchmaking";
-import { WILDCARDS } from "@/lib/champion-types";
+import { WILDCARDS, isWildcard } from "@/lib/champion-types";
+import { BRACKET_ORDER } from "@/lib/constants";
 import type { EloBracket } from "@/lib/constants";
+import { getMatchupWinRate, isCounterMatchup } from "@/lib/matchup";
 
 // DDragon champion IDs are alphanumeric, 1-50 chars (e.g. "Darius", "JarvanIV")
-const CHAMPION_RE    = /^[a-zA-Z0-9]{1,50}$/;
-const VALID_BRACKETS = new Set(["low", "mid", "high", "elite"]);
+const CHAMPION_RE     = /^[a-zA-Z0-9]{1,50}$/;
+const VALID_BRACKETS  = new Set<string>(BRACKET_ORDER); // includes "apex"
 const VALID_WILDCARDS = new Set<string>(WILDCARDS);
 
 export async function POST(req: NextRequest) {
@@ -48,11 +50,19 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    // Check for counter matchup advantage (fail-open — never blocks queuing)
+    let counterBonus = false;
+    if (!isWildcard(vsChampion)) {
+      const wr = await getMatchupWinRate(myChampion, vsChampion);
+      counterBonus = isCounterMatchup(wr);
+    }
+
     const match = await joinQueueAndMatch(
       session.userId,
       myChampion,
       vsChampion,
-      eloBracket as EloBracket
+      eloBracket as EloBracket,
+      counterBonus
     );
 
     if (match) {

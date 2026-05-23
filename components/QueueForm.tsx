@@ -12,8 +12,9 @@ import type { Champion } from "@/app/api/champions/route";
 import type { MatchResult } from "@/lib/matchmaking";
 import {
   Swords, Clock, CheckCircle2, XCircle, Loader2,
-  Users, Zap, Trophy, ThumbsUp, ThumbsDown, Lock,
+  Users, Zap, Trophy, ThumbsUp, ThumbsDown, Lock, ShieldCheck,
 } from "lucide-react";
+import type { MatchupInfo } from "@/app/api/queue/matchup-info/route";
 import Image from "next/image";
 
 type QueueState  = "idle" | "searching" | "matched" | "error";
@@ -151,6 +152,7 @@ export default function QueueForm({ riotId }: Props) {
   const [match,       setMatch]       = useState<MatchResult | null>(null);
   const [error,       setError]       = useState("");
   const [elapsed,     setElapsed]     = useState(0);
+  const [matchupInfo, setMatchupInfo] = useState<MatchupInfo | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const sseRef   = useRef<EventSource | null>(null);
 
@@ -178,6 +180,19 @@ export default function QueueForm({ riotId }: Props) {
       .catch(() => {}) // network error → fail open
       .finally(() => setRankLoading(false));
   }, []);
+
+  // Fetch counter-matchup info whenever champion selection changes
+  useEffect(() => {
+    if (!myChampion || !vsChampion || isWildcard(vsChampion)) {
+      setMatchupInfo(null);
+      return;
+    }
+    const params = new URLSearchParams({ myChampion, vsChampion, eloBracket });
+    fetch(`/api/queue/matchup-info?${params}`)
+      .then((r) => r.json())
+      .then((d: MatchupInfo) => setMatchupInfo(d))
+      .catch(() => setMatchupInfo(null));
+  }, [myChampion, vsChampion, eloBracket]);
 
   useEffect(() => {
     if (state === "searching") {
@@ -392,6 +407,17 @@ export default function QueueForm({ riotId }: Props) {
             eloBracket={eloBracket}
           />
           <LivePlayerCount />
+          {matchupInfo?.isCounter && (
+            <div className="flex items-center gap-1.5 text-xs text-amber-400">
+              <ShieldCheck className="w-3 h-3" />
+              <span>
+                Counter advantage · searching{" "}
+                {matchupInfo.bonusBracketLabel
+                  ? `${ELO_BRACKETS.find(b => b.value === eloBracket)?.label} + ${matchupInfo.bonusBracketLabel}`
+                  : "expanded pool"}
+              </span>
+            </div>
+          )}
         </div>
 
         <button onClick={leaveQueue} className="btn-secondary w-full flex items-center justify-center gap-2">
@@ -433,6 +459,26 @@ export default function QueueForm({ riotId }: Props) {
           vsChampion={vsChampion}
           eloBracket={eloBracket}
         />
+      )}
+
+      {/* Counter matchup advantage badge */}
+      {matchupInfo?.isCounter && (
+        <div className="flex items-start gap-2 text-xs bg-amber-400/10 border border-amber-400/20 text-amber-400 rounded-lg px-3 py-2.5">
+          <ShieldCheck className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+          <span>
+            <span className="font-semibold">
+              {matchupInfo.winRate?.toFixed(1)}% win rate advantage
+            </span>{" "}
+            into this matchup
+            {matchupInfo.bonusBracketLabel && (
+              <>
+                {" "}· you&apos;ll also match against{" "}
+                <span className="font-semibold">{matchupInfo.bonusBracketLabel}</span>{" "}
+                opponents
+              </>
+            )}
+          </span>
+        </div>
       )}
 
       <div>
