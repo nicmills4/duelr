@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Image from "next/image";
-import { Users, ArrowRight } from "lucide-react";
+import { Users } from "lucide-react";
 import { ELO_BRACKETS } from "@/lib/constants";
 import type { LobbyPlayer } from "@/lib/lobby-types";
 
@@ -46,12 +46,6 @@ export default function LobbyPreview({ refreshInterval = 20_000 }: { refreshInte
             {players.length === 1 ? "player" : "players"} available now
           </p>
         </div>
-        <a
-          href="/lobby"
-          className="flex items-center gap-1 text-xs text-gold-400 hover:underline font-medium"
-        >
-          Join Lobby <ArrowRight className="w-3 h-3" />
-        </a>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
