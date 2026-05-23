@@ -159,6 +159,14 @@ export default function QueueForm({ riotId }: Props) {
 
   const LOW_PLAYER_THRESHOLD = 10;
 
+  // Sync champion selections when URL params change (e.g. "Practice →" in suggested matchups)
+  useEffect(() => {
+    const my = searchParams.get("my");
+    const vs = searchParams.get("vs");
+    if (my) setMyChampion(my);
+    if (vs) setVsChampion(vs);
+  }, [searchParams]);
+
   // Fetch champion list
   useEffect(() => {
     fetch("/api/champions")
