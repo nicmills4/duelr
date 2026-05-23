@@ -150,7 +150,8 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
   const [filterType,   setFilterType]   = useState<"all" | "melee" | "ranged">("all");
   const [filterRegion, setFilterRegion] = useState<string>("all");
 
-  const sseRef = useRef<EventSource | null>(null);
+  const sseRef          = useRef<EventSource | null>(null);
+  const sessionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const outgoingCountdown = useCountdown(outgoing?.expiresAt ?? null);
   const incomingCountdown = useCountdown(incoming?.expiresAt ?? null);
 
@@ -209,11 +210,32 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
           setAvailable(false);
         } else if (data.type === "challenge_declined") {
           setOutgoing(null);
+        } else if (data.type === "session_expired") {
+          // Server evicted the lobby entry — notify and reset UI
+          if ("Notification" in window && Notification.permission === "granted") {
+            new Notification("Duelr — Lobby Session Expired", {
+              body: "Your lobby session expired after 1 hour. Open Duelr to go available again.",
+              icon: "/favicon.ico",
+            });
+          }
+          if (sessionTimerRef.current) {
+            clearTimeout(sessionTimerRef.current);
+            sessionTimerRef.current = null;
+          }
+          setAvailable(false);
         }
       } catch {}
     };
 
-    return () => { sse.close(); sseRef.current = null; };
+    return () => {
+      sse.close();
+      sseRef.current = null;
+      // Clear expiry timer on unmount so it doesn't fire after navigation
+      if (sessionTimerRef.current) {
+        clearTimeout(sessionTimerRef.current);
+        sessionTimerRef.current = null;
+      }
+    };
   }, []);
 
   // Poll player list every 10 s
@@ -242,7 +264,7 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
     const champ = champions.find((c) => c.id === myChampion);
     if (!champ) { setGoing(false); return; }
 
-    const res = await fetch("/api/lobby/available", {
+    const res  = await fetch("/api/lobby/available", {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -253,12 +275,38 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
         acceptsType,
       }),
     });
+    const data = await res.json().catch(() => ({}));
 
     setGoing(false);
-    if (res.ok) { setAvailable(true); fetchPlayers(); }
+    if (res.ok) {
+      setAvailable(true);
+      fetchPlayers();
+
+      // Client-side expiry countdown — shows OS notification when the 1-hour
+      // Redis TTL would fire, then resets the UI without needing a page refresh.
+      const msLeft = (data.expiresAt ?? 0) - Date.now();
+      if (sessionTimerRef.current) clearTimeout(sessionTimerRef.current);
+      if (msLeft > 0) {
+        sessionTimerRef.current = setTimeout(() => {
+          sessionTimerRef.current = null;
+          if ("Notification" in window && Notification.permission === "granted") {
+            new Notification("Duelr — Lobby Session Expired", {
+              body: "Your lobby session expired after 1 hour. Open Duelr to go available again.",
+              icon: "/favicon.ico",
+            });
+          }
+          setAvailable(false);
+          fetchPlayers();
+        }, msLeft);
+      }
+    }
   }
 
   async function goOffline() {
+    if (sessionTimerRef.current) {
+      clearTimeout(sessionTimerRef.current);
+      sessionTimerRef.current = null;
+    }
     await fetch("/api/lobby/leave", { method: "POST" });
     setAvailable(false);
     fetchPlayers();

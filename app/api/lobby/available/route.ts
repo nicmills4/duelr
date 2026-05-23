@@ -44,5 +44,6 @@ export async function POST(req: NextRequest) {
     acceptsType: acceptsType as AcceptsType,
   });
 
-  return NextResponse.json({ ok: true });
+  const { LOBBY_TTL } = await import("@/lib/lobby");
+  return NextResponse.json({ ok: true, expiresAt: Date.now() + LOBBY_TTL * 1000 });
 }

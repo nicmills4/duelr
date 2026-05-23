@@ -21,8 +21,9 @@ export async function GET() {
   const stream = new ReadableStream({
     start(controller) {
       const sub = createSubscriberClient();
-      let matched = false;
+      let matched   = false;
       let cleanedUp = false;
+      let expiryTimer: ReturnType<typeof setTimeout> | null = null;
 
       const send = (data: string) => {
         try {
@@ -44,6 +45,7 @@ export async function GET() {
         if (cleanedUp) return;
         cleanedUp = true;
 
+        if (expiryTimer) { clearTimeout(expiryTimer); expiryTimer = null; }
         clearInterval(heartbeat);
         sub.unsubscribe(channel).catch(() => {});
         sub.quit().catch(() => {});
@@ -56,6 +58,14 @@ export async function GET() {
 
         try { controller.close(); } catch {}
       }
+
+      // After 1 hour with no match, expire the session so stale queue
+      // entries are cleaned up and the client is notified to re-queue.
+      expiryTimer = setTimeout(() => {
+        expiryTimer = null;
+        send(JSON.stringify({ type: "session_expired" }));
+        cleanup(); // sets matched=false → leaveQueue() fires
+      }, 60 * 60 * 1000);
 
       doCleanup = cleanup;
 

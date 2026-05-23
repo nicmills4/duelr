@@ -317,6 +317,20 @@ export default function QueueForm({ riotId }: Props) {
     sse.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
+
+        if (data.type === "session_expired") {
+          // Notify the user if the tab is in the background
+          if ("Notification" in window && Notification.permission === "granted") {
+            new Notification("Duelr — Search Expired", {
+              body: "Your matchmaking session expired after 1 hour. Open Duelr to search again.",
+              icon: "/favicon.ico",
+            });
+          }
+          setState("idle");
+          closeSse();
+          return;
+        }
+
         if (data.error) { setError(data.error); setState("error"); }
         else {
           const result = data as MatchResult;

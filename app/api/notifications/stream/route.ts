@@ -9,7 +9,8 @@
  */
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
-import { createSubscriberClient, notificationChannel } from "@/lib/redis";
+import { createSubscriberClient, notificationChannel, redis } from "@/lib/redis";
+import { leaveLobby, lobbyKey } from "@/lib/lobby";
 
 export const dynamic = "force-dynamic";
 
@@ -19,13 +20,20 @@ export async function GET() {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
-  const channel = notificationChannel(session.userId);
+  const userId  = session.userId;
+  const channel = notificationChannel(userId);
+
+  // If the user is already in the lobby (e.g. page refresh), compute remaining
+  // TTL so the server can clean them up even if the client tab goes dead.
+  const existingTtl = await redis.ttl(lobbyKey(userId));
+
   let doCleanup: () => void = () => {};
 
   const stream = new ReadableStream({
     start(controller) {
       const sub = createSubscriberClient();
       let cleanedUp = false;
+      let expiryTimer: ReturnType<typeof setTimeout> | null = null;
 
       const send = (data: string) => {
         try {
@@ -46,6 +54,7 @@ export async function GET() {
       function cleanup() {
         if (cleanedUp) return;
         cleanedUp = true;
+        if (expiryTimer) { clearTimeout(expiryTimer); expiryTimer = null; }
         clearInterval(heartbeat);
         sub.unsubscribe(channel).catch(() => {});
         sub.quit().catch(() => {});
@@ -54,16 +63,29 @@ export async function GET() {
 
       doCleanup = cleanup;
 
+      // Server-side expiry backup: fires when the lobby Redis key would expire.
+      // Handles page-refresh / dead-tab cases where the client timer is lost.
+      // For a fresh session (existingTtl <= 0) the client-side timer takes over.
+      if (existingTtl > 0) {
+        expiryTimer = setTimeout(async () => {
+          expiryTimer = null;
+          await leaveLobby(userId).catch(() => {});
+          // Publish so the SSE sends the event to the client if still connected
+          send(JSON.stringify({ type: "session_expired" }));
+          cleanup();
+        }, existingTtl * 1000);
+      }
+
       sub.subscribe(channel, (err) => {
         if (err) { send(JSON.stringify({ error: "subscription failed" })); cleanup(); }
       });
 
       sub.on("message", (_ch: string, message: string) => {
         send(message);
-        // Close after a terminal event so the connection doesn't linger
+        // Close after terminal events so the connection doesn't linger
         try {
           const parsed = JSON.parse(message);
-          if (parsed.type === "challenge_accepted") cleanup();
+          if (parsed.type === "challenge_accepted" || parsed.type === "session_expired") cleanup();
         } catch {}
       });
 

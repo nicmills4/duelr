@@ -8,11 +8,11 @@ import type { LobbyEntry, LobbyPlayer, ChallengePayload, AcceptsType } from "./l
 
 export type { AcceptsType, LobbyPlayer, LobbyEntry, ChallengePayload };
 
-const LOBBY_TTL   = 60 * 20; // 20 minutes
-const CHALLENGE_TTL = 45;    // 45 seconds
+export const LOBBY_TTL    = 60 * 60; // 1 hour
+const        CHALLENGE_TTL = 45;    // 45 seconds
 
 const MEMBERS_KEY = "lobby:members";
-const lobbyKey    = (uid: string) => `lobby:player:${uid}`;
+export const lobbyKey = (uid: string) => `lobby:player:${uid}`;
 const challengeKey = (id: string) => `lobby:challenge:${id}`;
 
 // ── Availability ──────────────────────────────────────────────────────────────
