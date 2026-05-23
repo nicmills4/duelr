@@ -8,7 +8,7 @@ import type { PartnerPostPublic, ChampEntry } from "@/lib/partner-types";
 export const dynamic = "force-dynamic";
 
 const VALID_BRACKETS  = new Set(ELO_BRACKETS.map((b) => b.value));
-const VALID_AVAIL     = new Set(AVAILABILITY_SLOTS.map((s) => s.id));
+const VALID_AVAIL     = new Set<string>(AVAILABILITY_SLOTS.map((s) => s.id));
 const CHAMPION_RE     = /^[a-zA-Z0-9]{1,50}$/;
 
 function parseJson(raw: string): string[] {
