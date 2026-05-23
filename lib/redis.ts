@@ -39,3 +39,8 @@ export function queueKey(elo: string, myChampion: string, vsChampion: string) {
 export function matchChannel(userId: string) {
   return `match:${userId}`;
 }
+
+// Channel for real-time lobby notifications (challenges, responses)
+export function notificationChannel(userId: string) {
+  return `notifications:${userId}`;
+}
