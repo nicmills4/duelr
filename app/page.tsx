@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import LoginForm from "@/components/LoginForm";
 import { Swords, Users, Zap, ShieldCheck } from "lucide-react";
 import LivePlayerCount from "@/components/LivePlayerCount";
-import PopularChampions from "@/components/PopularChampions";
+import LobbyPreview from "@/components/LobbyPreview";
 
 export default async function HomePage() {
   const session = await getSession();
@@ -24,7 +24,7 @@ export default async function HomePage() {
         <LivePlayerCount className="justify-center" />
       </div>
 
-      <PopularChampions />
+      <LobbyPreview />
 
       <div className="grid md:grid-cols-2 gap-8 items-start mt-10">
         {/* Login card */}

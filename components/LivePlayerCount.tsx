@@ -35,7 +35,7 @@ export default function LivePlayerCount({ className = "", refreshInterval = 3000
       <Users className="w-3.5 h-3.5" />
       <span>
         <span className="text-white font-semibold">{count}</span>{" "}
-        {count === 1 ? "player" : "players"} in queue
+        {count === 1 ? "player" : "players"} looking to play
       </span>
     </div>
   );
