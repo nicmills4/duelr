@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
-import { stripe } from "@/lib/stripe";
+import { getStripe } from "@/lib/stripe";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +19,7 @@ export async function POST() {
   }
 
   const origin  = process.env.NEXT_PUBLIC_APP_URL ?? "https://duelr.gg";
-  const portal  = await stripe.billingPortal.sessions.create({
+  const portal  = await getStripe().billingPortal.sessions.create({
     customer:    user.stripeCustomerId,
     return_url:  `${origin}/premium`,
   });

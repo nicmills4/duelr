@@ -5,7 +5,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { stripe, sessionTotal, platformFee } from "@/lib/stripe";
+import { getStripe, sessionTotal, platformFee } from "@/lib/stripe";
 
 const VALID_DURATIONS = new Set([30, 60, 90]);
 
@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
 
   const origin = process.env.NEXT_PUBLIC_APP_URL ?? "https://duelr.gg";
 
-  const checkoutSession = await stripe.checkout.sessions.create({
+  const checkoutSession = await getStripe().checkout.sessions.create({
     mode:                 "payment",
     payment_method_types: ["card"],
     line_items: [

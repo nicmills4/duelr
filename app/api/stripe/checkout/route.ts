@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
-import { stripe } from "@/lib/stripe";
+import { getStripe } from "@/lib/stripe";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +18,7 @@ export async function POST() {
   }))?.stripeCustomerId ?? null;
 
   if (!customerId) {
-    const customer = await stripe.customers.create({
+    const customer = await getStripe().customers.create({
       email:    undefined, // Riot-based users don't have stored emails
       metadata: { userId, riotId: user.riotId },
     });
@@ -31,7 +31,7 @@ export async function POST() {
 
   const origin = process.env.NEXT_PUBLIC_APP_URL ?? "https://duelr.gg";
 
-  const checkoutSession = await stripe.checkout.sessions.create({
+  const checkoutSession = await getStripe().checkout.sessions.create({
     customer:             customerId,
     mode:                 "subscription",
     payment_method_types: ["card"],
