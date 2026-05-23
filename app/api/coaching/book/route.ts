@@ -65,14 +65,14 @@ export async function POST(req: NextRequest) {
           currency:     "usd",
           unit_amount:  total,
           product_data: {
-            name:        `Duelr Coaching — ${dur} min with Coach ${coach.displayCode}`,
+            name:        `Duelr Coaching — ${dur} min with ${coach.user.riotId}`,
             description: `${dur}-minute 1v1 coaching session · ${coach.verifiedTier}`,
           },
         },
         quantity: 1,
       },
     ],
-    success_url: `${origin}/coaching?booked=${booking.id}`,
+    success_url: `${origin}/coaching?booked=1`,
     cancel_url:  `${origin}/coaching?canceled=1`,
     metadata:    { coachingSessionId: booking.id },
   });

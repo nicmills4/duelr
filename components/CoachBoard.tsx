@@ -13,7 +13,7 @@ interface ChampEntry { id: string; imageUrl: string }
 
 interface CoachData {
   id:           string;
-  displayCode:  string;
+  riotId:       string;
   verifiedTier: string;
   hourlyRate:   number;
   bio:          string | null;
@@ -76,7 +76,7 @@ function CoachCard({ coach, onBook }: { coach: CoachData; onBook: () => void }) 
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <Shield className="w-4 h-4 text-gold-400 flex-shrink-0" />
-            <span className="font-bold text-white text-base">Coach {coach.displayCode}</span>
+            <span className="font-bold text-white text-base">{coach.riotId}</span>
           </div>
           <span className={`inline-flex text-[10px] font-semibold px-2 py-0.5 rounded-full border ${badge}`}>
             {coach.verifiedTier.charAt(0) + coach.verifiedTier.slice(1).toLowerCase()} · Verified
@@ -160,7 +160,7 @@ function BookModal({ coach, onClose }: { coach: CoachData; onClose: () => void }
         </button>
 
         <div>
-          <h2 className="font-bold text-white text-lg">Book Coach {coach.displayCode}</h2>
+          <h2 className="font-bold text-white text-lg">Book {coach.riotId}</h2>
           <p className="text-xs text-gray-500 mt-0.5">
             {coach.verifiedTier.charAt(0) + coach.verifiedTier.slice(1).toLowerCase()} · {centsToDisplay(coach.hourlyRate)}
           </p>
@@ -204,11 +204,6 @@ function BookModal({ coach, onClose }: { coach: CoachData; onClose: () => void }
           </div>
         </div>
 
-        <div className="bg-gold-400/5 border border-gold-400/15 rounded-lg px-3 py-2 text-xs text-gold-400/80 flex items-start gap-2">
-          <Shield className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
-          Coach&apos;s Riot ID is revealed after payment so you can add them in-client.
-        </div>
-
         {err && <p className="text-sm text-red-400">{err}</p>}
 
         <button
@@ -228,14 +223,13 @@ function BookModal({ coach, onClose }: { coach: CoachData; onClose: () => void }
 
 interface Props {
   userId:   string | null;
-  bookedId: string | null;
+  bookedId: boolean;
 }
 
 export default function CoachBoard({ userId, bookedId }: Props) {
-  const [coaches,     setCoaches]     = useState<CoachData[]>([]);
-  const [loading,     setLoading]     = useState(true);
-  const [bookTarget,  setBookTarget]  = useState<CoachData | null>(null);
-  const [bookedCoach, setBookedCoach] = useState<{ riotId: string; displayCode: string } | null>(null);
+  const [coaches,    setCoaches]    = useState<CoachData[]>([]);
+  const [loading,    setLoading]    = useState(true);
+  const [bookTarget, setBookTarget] = useState<CoachData | null>(null);
 
   const load = useCallback(() => {
     fetch("/api/coaching/coaches")
@@ -247,37 +241,17 @@ export default function CoachBoard({ userId, bookedId }: Props) {
 
   useEffect(() => { load(); }, [load]);
 
-  // Reveal coach Riot ID after confirmed booking
-  useEffect(() => {
-    if (!bookedId) return;
-    fetch(`/api/coaching/session/${bookedId}`)
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.coachRiotId) setBookedCoach({ riotId: d.coachRiotId, displayCode: d.displayCode });
-      })
-      .catch(() => {});
-  }, [bookedId]);
-
   return (
     <div className="space-y-6">
-      {/* Booking confirmed — reveal coach Riot ID */}
-      {bookedCoach && (
-        <div className="card border border-emerald-500/20 bg-emerald-500/5 space-y-2">
+      {bookedId && (
+        <div className="card border border-emerald-500/20 bg-emerald-500/5 space-y-1">
           <div className="flex items-center gap-2 text-emerald-400 font-semibold">
             <CheckCircle2 className="w-5 h-5" />
             Session booked!
           </div>
           <p className="text-sm text-gray-300">
-            Your coach is{" "}
-            <span className="text-gold-400 font-bold">{bookedCoach.riotId}</span>.
-            Add them as a friend in the League client to arrange your session.
+            Payment confirmed. Add your coach as a friend in the League client to arrange your session.
           </p>
-          <button
-            onClick={() => setBookedCoach(null)}
-            className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
-          >
-            Dismiss
-          </button>
         </div>
       )}
 

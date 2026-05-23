@@ -25,8 +25,7 @@ export async function GET() {
 
       return {
         id:           c.id,
-        // Double-blind: never expose Riot ID here — only after a paid booking
-        displayCode:  c.displayCode,
+        riotId:       c.user.riotId,
         verifiedTier: c.verifiedTier,
         hourlyRate:   c.hourlyRate,
         bio:          c.bio,
