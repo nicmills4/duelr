@@ -7,7 +7,7 @@ import LivePlayerCount from "./LivePlayerCount";
 import { ELO_BRACKETS, BRACKET_ORDER } from "@/lib/constants";
 import type { EloBracket } from "@/lib/constants";
 import type { RankInfo } from "@/app/api/me/rank/route";
-import { isWildcard, wildcardLabel } from "@/lib/champion-types";
+import { isWildcard, wildcardLabel, WILDCARD_ANY } from "@/lib/champion-types";
 import type { Champion } from "@/app/api/champions/route";
 import type { MatchResult } from "@/lib/matchmaking";
 import {
@@ -152,15 +152,31 @@ export default function QueueForm({ riotId }: Props) {
   const [match,       setMatch]       = useState<MatchResult | null>(null);
   const [error,       setError]       = useState("");
   const [elapsed,     setElapsed]     = useState(0);
-  const [matchupInfo, setMatchupInfo] = useState<MatchupInfo | null>(null);
+  const [matchupInfo,  setMatchupInfo]  = useState<MatchupInfo | null>(null);
+  const [totalPlayers, setTotalPlayers] = useState<number | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const sseRef   = useRef<EventSource | null>(null);
+
+  const LOW_PLAYER_THRESHOLD = 10;
 
   // Fetch champion list
   useEffect(() => {
     fetch("/api/champions")
       .then((r) => r.json())
       .then((d) => setChampions(d.champions ?? []));
+  }, []);
+
+  // Track total queue size to power the low-player-count hint
+  useEffect(() => {
+    function refreshCount() {
+      fetch("/api/queue/count")
+        .then((r) => r.json())
+        .then((d) => setTotalPlayers(d.count ?? 0))
+        .catch(() => {});
+    }
+    refreshCount();
+    const id = setInterval(refreshCount, 30_000);
+    return () => clearInterval(id);
   }, []);
 
   // Fetch player's rank and gate brackets accordingly.
@@ -451,6 +467,30 @@ export default function QueueForm({ riotId }: Props) {
         champions={champions}
         allowWildcards
       />
+
+      {/* Low player count suggestion */}
+      {totalPlayers !== null &&
+        totalPlayers < LOW_PLAYER_THRESHOLD &&
+        vsChampion &&
+        !isWildcard(vsChampion) && (
+        <button
+          type="button"
+          onClick={() => setVsChampion(WILDCARD_ANY)}
+          className="flex items-center gap-2.5 w-full text-xs text-left bg-gold-400/10 border border-gold-400/20 text-gold-400 rounded-lg px-3 py-2.5 hover:bg-gold-400/15 transition-colors group"
+        >
+          <Users className="w-3.5 h-3.5 flex-shrink-0 opacity-80" />
+          <span className="flex-1">
+            <span className="font-semibold">
+              Only {totalPlayers} {totalPlayers === 1 ? "player" : "players"} in queue
+            </span>
+            {" — try "}
+            <span className="underline underline-offset-2 group-hover:no-underline">
+              Any Champion
+            </span>
+            {" to match faster"}
+          </span>
+        </button>
+      )}
 
       {/* Queue depth + wait time */}
       {myChampion && vsChampion && (
