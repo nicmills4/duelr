@@ -236,13 +236,12 @@ export default function QueueForm({ riotId }: Props) {
 
   // Fetch counter-matchup info whenever champion selection changes
   useEffect(() => {
-    const concrete = vsChampions.filter((vs) => !isWildcard(vs));
-    if (!myChampion || concrete.length === 0) {
+    if (!myChampion || vsChampions.length === 0) {
       setMatchupInfo(null);
       return;
     }
     const params = new URLSearchParams({ myChampion, eloBracket });
-    concrete.forEach((vs) => params.append("vsChampion", vs));
+    vsChampions.forEach((vs) => params.append("vsChampion", vs));
     fetch(`/api/queue/matchup-info?${params}`)
       .then((r) => r.json())
       .then((d: MatchupInfo) => setMatchupInfo(d))
@@ -551,9 +550,9 @@ export default function QueueForm({ riotId }: Props) {
       <div>
         <div className="flex items-center justify-between mb-1.5">
           <label className="label mb-0">I want to face</label>
-          {vsChampions.length > 0 && !hasWildcard && (
+          {vsChampions.length > 0 && (
             <span className="text-xs text-gray-600">
-              {specificCount}/{MAX_VS_CHAMPIONS} selected
+              {vsChampions.length}/{MAX_VS_CHAMPIONS} selected
             </span>
           )}
         </div>
@@ -565,7 +564,6 @@ export default function QueueForm({ riotId }: Props) {
             value=""
             onChange={addVsChampion}
             champions={champions}
-            allowWildcards
           />
         ) : (
           <div className="space-y-2">
@@ -589,7 +587,6 @@ export default function QueueForm({ riotId }: Props) {
                   value=""
                   onChange={addVsChampion}
                   champions={champions}
-                  allowWildcards={false}
                 />
               ) : (
                 <button
@@ -603,37 +600,23 @@ export default function QueueForm({ riotId }: Props) {
               )
             )}
 
-            {hasWildcard && (
-              <p className="text-xs text-gray-600">
-                Wildcard active — matches any opponent champion.
-              </p>
-            )}
           </div>
         )}
       </div>
 
-      {/* Low player count suggestion */}
+      {/* Low player count hint */}
       {totalPlayers !== null &&
         totalPlayers < LOW_PLAYER_THRESHOLD &&
-        vsChampions.length > 0 &&
-        !hasWildcard && (
-        <button
-          type="button"
-          onClick={() => setVsChampions([WILDCARD_ANY])}
-          className="flex items-center gap-2.5 w-full text-xs text-left bg-gold-400/10 border border-gold-400/20 text-gold-400 rounded-lg px-3 py-2.5 hover:bg-gold-400/15 transition-colors group"
-        >
+        vsChampions.length > 0 && (
+        <div className="flex items-center gap-2.5 w-full text-xs text-left bg-gold-400/10 border border-gold-400/20 text-gold-400 rounded-lg px-3 py-2.5">
           <Users className="w-3.5 h-3.5 flex-shrink-0 opacity-80" />
-          <span className="flex-1">
+          <span>
             <span className="font-semibold">
               Only {totalPlayers} {totalPlayers === 1 ? "player" : "players"} in queue
             </span>
-            {" — try "}
-            <span className="underline underline-offset-2 group-hover:no-underline">
-              Any Champion
-            </span>
-            {" to match faster"}
+            {" — try adding more champions to match faster"}
           </span>
-        </button>
+        </div>
       )}
 
       {/* Queue depth */}
