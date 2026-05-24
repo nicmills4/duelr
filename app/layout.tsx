@@ -5,6 +5,7 @@ import "./globals.css";
 import { getSession } from "@/lib/session";
 import NavLinks from "@/components/NavLinks";
 import AdBanner from "@/components/AdBanner";
+import GlobalLobbyNotifier from "@/components/GlobalLobbyNotifier";
 
 const bebasNeue = Bebas_Neue({
   weight: "400",
@@ -49,6 +50,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         {/* AdBanner: temporarily disabled until Stripe/Premium is live */}
         {/* {session && !session.user.isPremium && <AdBanner />} */}
         <main>{children}</main>
+        {/* Global toast: fires when a lobby challenge is accepted off-page */}
+        {session && <GlobalLobbyNotifier />}
       </body>
     </html>
   );
