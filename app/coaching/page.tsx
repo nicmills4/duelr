@@ -35,7 +35,7 @@ export default async function CoachingPage({
       <div className="mb-8 bg-dark-800 border border-dark-600 rounded-xl p-5 max-w-xl">
         <div className="flex items-center gap-2 mb-2">
           <Mail className="w-4 h-4 text-amber-400 flex-shrink-0" />
-          <h2 className="text-sm font-semibold text-white">Interested in coaching on Duelr?</h2>
+          <h2 className="text-sm font-semibold text-white">Interested in coaching on Duelr? Set your own rates and have clients come to you!</h2>
         </div>
         <p className="text-sm text-gray-400 mb-3">
           Reach out to{" "}
@@ -47,6 +47,7 @@ export default async function CoachingPage({
         </p>
         <ul className="space-y-1.5 text-sm text-gray-400">
           {[
+            "Minimum Rank: Masters",
             "Your Op.gg profile link",
             "Your Discord username",
             "A quick bio — rank, peak rank, main role",
