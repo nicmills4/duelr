@@ -42,7 +42,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
             <a href="/" className="flex items-center gap-2">
               <span className="font-display text-2xl tracking-wide"><span className="text-amber-400">Duel</span><span className="text-white">r</span></span>
-              <span className="text-xs text-gray-500 ml-1">1v1</span>
             </a>
             <NavLinks isLoggedIn={!!session} />
           </div>
