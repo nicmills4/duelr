@@ -170,6 +170,31 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
       .then((d) => setChampions(d.champions ?? []));
   }, []);
 
+  // ── Persist form selections to localStorage ───────────────────────────────
+  // Load on mount so fields are pre-filled after navigation
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("duelr:lobby:form");
+      if (saved) {
+        const { myChampion: c, eloBracket: e, acceptsType: a } = JSON.parse(saved);
+        if (c) setMyChampion(c);
+        if (e) setEloBracket(e as EloBracket);
+        if (a) setAcceptsType(a as AcceptsType);
+      }
+    } catch {}
+  }, []);
+
+  // Save whenever fields change
+  useEffect(() => {
+    if (!myChampion) return;
+    try {
+      localStorage.setItem(
+        "duelr:lobby:form",
+        JSON.stringify({ myChampion, eloBracket, acceptsType })
+      );
+    } catch {}
+  }, [myChampion, eloBracket, acceptsType]);
+
   // Notification SSE — stays open for real-time challenge events
   useEffect(() => {
     const sse = new EventSource("/api/notifications/stream");
@@ -238,19 +263,57 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
     };
   }, []);
 
-  // Poll player list every 10 s
-  const fetchPlayers = useCallback(() => {
+  // Poll player list every 10 s.
+  // Pass restore=true on the initial mount call so we can detect and restore
+  // any existing lobby session the user had before navigating away.
+  const fetchPlayers = useCallback((restore = false) => {
     setLoadingPlayers(true);
     fetch("/api/lobby/players")
       .then((r) => r.json())
-      .then((d) => setPlayers(d.players ?? []))
+      .then((d) => {
+        const allPlayers: LobbyPlayer[] = d.players ?? [];
+        setPlayers(allPlayers);
+
+        if (restore) {
+          const me = allPlayers.find((p) => p.userId === userId);
+          if (me) {
+            // User is already available in the lobby — restore full state
+            setMyChampion(me.myChampion);
+            setEloBracket(me.eloBracket as EloBracket);
+            setAcceptsType(me.acceptsType);
+            setAvailable(true);
+
+            // Re-arm the client-side expiry timer using the remaining Redis TTL
+            fetch("/api/lobby/status")
+              .then((r) => r.json())
+              .then((s) => {
+                if (!s.expiresAt) return;
+                const msLeft = s.expiresAt - Date.now();
+                if (msLeft <= 0) return;
+                if (sessionTimerRef.current) clearTimeout(sessionTimerRef.current);
+                sessionTimerRef.current = setTimeout(() => {
+                  sessionTimerRef.current = null;
+                  if ("Notification" in window && Notification.permission === "granted") {
+                    new Notification("Duelr — Lobby Session Expired", {
+                      body: "Your lobby session expired after 1 hour. Open Duelr to go available again.",
+                      icon: "/favicon.ico",
+                    });
+                  }
+                  setAvailable(false);
+                  fetchPlayers();
+                }, msLeft);
+              })
+              .catch(() => {});
+          }
+        }
+      })
       .catch(() => {})
       .finally(() => setLoadingPlayers(false));
-  }, []);
+  }, [userId]);
 
   useEffect(() => {
-    fetchPlayers();
-    const id = setInterval(fetchPlayers, 10_000);
+    fetchPlayers(true);                            // restore=true on first load
+    const id = setInterval(() => fetchPlayers(), 10_000);
     return () => clearInterval(id);
   }, [fetchPlayers]);
 
