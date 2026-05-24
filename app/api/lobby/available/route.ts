@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
-import { setLobbyAvailable } from "@/lib/lobby";
+import { setLobbyAvailable, leaveLobbyGroup, LOBBY_TTL } from "@/lib/lobby";
 import { leaveQueue } from "@/lib/matchmaking";
 import { BRACKET_ORDER } from "@/lib/constants";
 import type { AcceptsType } from "@/lib/lobby-types";
@@ -33,8 +33,11 @@ export async function POST(req: NextRequest) {
 
   const userId = session.userId;
 
-  // Leave the specific matchmaking queue if they were in one
-  await leaveQueue(userId).catch(() => {});
+  // Mutual exclusivity: leave queue and 2v2 group before going 1v1 available
+  await Promise.all([
+    leaveQueue(userId).catch(() => {}),
+    leaveLobbyGroup(userId).catch(() => {}),
+  ]);
 
   await setLobbyAvailable(userId, {
     myChampion,
@@ -44,6 +47,5 @@ export async function POST(req: NextRequest) {
     acceptsType: acceptsType as AcceptsType,
   });
 
-  const { LOBBY_TTL } = await import("@/lib/lobby");
   return NextResponse.json({ ok: true, expiresAt: Date.now() + LOBBY_TTL * 1000 });
 }

@@ -111,8 +111,79 @@ export async function createLobbyGroup(
 }
 
 /**
- * Fills a slot in a group. Returns the updated group and whether it is now full.
- * If full, removes the group from the joinable set and cleans up all user-group keys.
+ * Lua script that atomically reads, validates, and writes a group slot.
+ *
+ * Using a Lua script makes the entire read-check-write a single atomic Redis
+ * operation, eliminating the race condition where two users could both see a
+ * slot as empty and both write themselves into it.
+ *
+ * KEYS[1] = groupKey(groupId)      — the group hash
+ * KEYS[2] = GROUPS_KEY             — the joinable-groups set
+ * KEYS[3] = userGroupKey(userId)   — reverse-lookup for the joining user
+ *
+ * ARGV[1] = slotKey                — which slot to fill
+ * ARGV[2] = slot JSON              — GroupSlot object (serialised)
+ * ARGV[3] = userId                 — the joining user's ID
+ * ARGV[4] = groupId                — needed when removing from GROUPS_KEY
+ * ARGV[5] = ttl (seconds)          — for SETEX
+ *
+ * Returns: JSON string { group: LobbyGroup, isFull: 0|1 }
+ * Errors:  NOT_FOUND | SLOT_TAKEN | ALREADY_IN_GROUP
+ */
+const JOIN_GROUP_SCRIPT = `
+local raw = redis.call('GET', KEYS[1])
+if not raw then return redis.error_reply('NOT_FOUND') end
+
+local group   = cjson.decode(raw)
+local slotKey = ARGV[1]
+
+local existing = group[slotKey]
+if existing ~= nil and existing ~= cjson.null then
+  return redis.error_reply('SLOT_TAKEN')
+end
+
+local userId   = ARGV[3]
+local allSlots = {'team1_adc', 'team1_support', 'team2_adc', 'team2_support'}
+
+for _, k in ipairs(allSlots) do
+  local s = group[k]
+  if type(s) == 'table' and s.userId == userId then
+    return redis.error_reply('ALREADY_IN_GROUP')
+  end
+end
+
+group[slotKey] = cjson.decode(ARGV[2])
+
+local isFull = true
+for _, k in ipairs(allSlots) do
+  local s = group[k]
+  if s == nil or s == cjson.null then isFull = false; break end
+end
+
+local groupId = ARGV[4]
+local ttl     = tonumber(ARGV[5])
+
+if isFull then
+  redis.call('SREM', KEYS[2], groupId)
+  redis.call('DEL',  KEYS[1])
+  for _, k in ipairs(allSlots) do
+    local s = group[k]
+    if type(s) == 'table' and s.userId then
+      redis.call('DEL', 'lobby:user:group:' .. tostring(s.userId))
+    end
+  end
+else
+  redis.call('SETEX', KEYS[1], ttl, cjson.encode(group))
+  redis.call('SETEX', KEYS[3], ttl, groupId)
+end
+
+return cjson.encode({group = group, isFull = isFull and 1 or 0})
+`;
+
+/**
+ * Fills a slot in a group. The entire read-check-write is performed as a
+ * single atomic Lua script so two concurrent requests cannot claim the same
+ * slot. Returns the updated group and whether it is now full.
  */
 export async function joinLobbyGroup(
   userId:  string,
@@ -120,36 +191,32 @@ export async function joinLobbyGroup(
   slotKey: SlotKey,
   slot:    Omit<GroupSlot, "isHost">
 ): Promise<{ group: LobbyGroup; isFull: boolean }> {
-  const raw = await redis.get(groupKey(groupId));
-  if (!raw) throw new Error("Group not found or expired");
+  const slotData: GroupSlot = { ...slot, isHost: false };
 
-  const group = JSON.parse(raw) as LobbyGroup;
-  if (group[slotKey] !== null) throw new Error("That slot is already taken");
-
-  // Check user isn't already in this group
-  for (const k of ALL_SLOTS) {
-    if (group[k]?.userId === userId) throw new Error("You are already in this group");
+  let raw: string;
+  try {
+    raw = await redis.eval(
+      JOIN_GROUP_SCRIPT,
+      3,
+      groupKey(groupId),    // KEYS[1]
+      GROUPS_KEY,           // KEYS[2]
+      userGroupKey(userId), // KEYS[3]
+      slotKey,              // ARGV[1]
+      JSON.stringify(slotData), // ARGV[2]
+      userId,               // ARGV[3]
+      groupId,              // ARGV[4]
+      String(LOBBY_TTL),    // ARGV[5]
+    ) as string;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes("NOT_FOUND"))       throw new Error("Group not found or expired");
+    if (msg.includes("SLOT_TAKEN"))      throw new Error("That slot is already taken");
+    if (msg.includes("ALREADY_IN_GROUP")) throw new Error("You are already in this group");
+    throw err;
   }
 
-  group[slotKey] = { ...slot, isHost: false };
-  const isFull = groupIsFull(group);
-
-  const pipeline = redis.pipeline();
-  if (isFull) {
-    // Remove from joinable set; keep data briefly for match-result storage
-    pipeline.srem(GROUPS_KEY, groupId);
-    pipeline.del(groupKey(groupId));
-    for (const k of ALL_SLOTS) {
-      const m = group[k];
-      if (m) pipeline.del(userGroupKey(m.userId));
-    }
-  } else {
-    pipeline.setex(groupKey(groupId), LOBBY_TTL, JSON.stringify(group));
-    pipeline.setex(userGroupKey(userId), LOBBY_TTL, groupId);
-  }
-  await pipeline.exec();
-
-  return { group, isFull };
+  const parsed = JSON.parse(raw) as { group: LobbyGroup; isFull: 0 | 1 };
+  return { group: parsed.group, isFull: parsed.isFull === 1 };
 }
 
 /**

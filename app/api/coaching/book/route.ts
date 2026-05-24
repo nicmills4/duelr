@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
     where:   { id: coachProfileId },
     include: { user: { select: { id: true, riotId: true } } },
   });
-  if (!coach || !coach.isActive)
+  if (!coach || !coach.isActive || !coach.isApproved)
     return NextResponse.json({ error: "Coach not found" }, { status: 404 });
 
   // Can't book yourself
