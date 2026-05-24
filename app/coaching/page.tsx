@@ -1,6 +1,6 @@
 import { getSession } from "@/lib/session";
 import CoachBoard from "@/components/CoachBoard";
-import { Shield } from "lucide-react";
+import { Shield, Mail } from "lucide-react";
 
 export const metadata = {
   title: "Coaching · Duelr",
@@ -29,6 +29,35 @@ export default async function CoachingPage({
           Tired of grinding matchups blind? Hire a verified Masters+ coach to play through
           the matchup with you and break down exactly what you&apos;re doing wrong.
         </p>
+      </div>
+
+      {/* Coach application callout */}
+      <div className="mb-8 bg-dark-800 border border-dark-600 rounded-xl p-5 max-w-xl">
+        <div className="flex items-center gap-2 mb-2">
+          <Mail className="w-4 h-4 text-amber-400 flex-shrink-0" />
+          <h2 className="text-sm font-semibold text-white">Interested in coaching on Duelr?</h2>
+        </div>
+        <p className="text-sm text-gray-400 mb-3">
+          Reach out to{" "}
+          <a href="mailto:playduelrsupport@gmail.com"
+            className="text-amber-400 hover:underline font-medium">
+            playduelrsupport@gmail.com
+          </a>{" "}
+          and include the following:
+        </p>
+        <ul className="space-y-1.5 text-sm text-gray-400">
+          {[
+            "Your Op.gg profile link",
+            "Your Discord username",
+            "A quick bio — rank, peak rank, main role",
+            "Champions you're comfortable coaching",
+          ].map((item) => (
+            <li key={item} className="flex items-start gap-2">
+              <span className="text-amber-400 mt-0.5">·</span>
+              {item}
+            </li>
+          ))}
+        </ul>
       </div>
 
       {canceled && (

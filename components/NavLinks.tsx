@@ -51,8 +51,8 @@ function ProtectedLink({
 export default function NavLinks({ isLoggedIn }: { isLoggedIn: boolean }) {
   return (
     <nav className="flex items-center gap-4 text-sm text-gray-400">
-      <ProtectedLink href="/queue"       label="Specific Matchups" isLoggedIn={isLoggedIn} />
       <ProtectedLink href="/lobby"       label="Lobby"             isLoggedIn={isLoggedIn} />
+      <ProtectedLink href="/queue"       label="Specific Matchups" isLoggedIn={isLoggedIn} />
       <a href="/partners"   className="hover:text-gold-400 transition-colors">Practice Partners</a>
       <a href="/coaching"   className="hover:text-gold-400 transition-colors">Coaching</a>
       <a href="/leaderboard" className="hover:text-gold-400 transition-colors">Leaderboard</a>
