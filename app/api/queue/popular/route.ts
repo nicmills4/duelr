@@ -38,10 +38,21 @@ export interface QueuePlayer {
   vsEntries: VsEntry[];
 }
 
+/** Queue sessions last at most 1 hour — anything older is a stale orphan. */
+const QUEUE_MAX_AGE_MS = 60 * 60 * 1000;
+
 export async function GET() {
   try {
+    const cutoff = new Date(Date.now() - QUEUE_MAX_AGE_MS);
+
+    // Purge stale orphans (rows whose SSE connection died without cleanup)
+    await prisma.queueEntry.deleteMany({
+      where: { createdAt: { lt: cutoff } },
+    });
+
     const [entries, versionRes] = await Promise.all([
       prisma.queueEntry.findMany({
+        where:   { createdAt: { gte: cutoff } },
         include: { user: true },
         orderBy: { createdAt: "desc" },
         take: 20,
