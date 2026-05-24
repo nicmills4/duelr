@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { deleteSession } from "@/lib/session";
 import { getSession } from "@/lib/session";
 import { leaveQueue } from "@/lib/matchmaking";
-import { leaveLobby } from "@/lib/lobby";
+import { leaveLobby, leaveLobbyGroup } from "@/lib/lobby";
 
 export async function POST() {
   try {
@@ -11,6 +11,7 @@ export async function POST() {
       await Promise.all([
         leaveQueue(session.userId).catch(() => {}),
         leaveLobby(session.userId).catch(() => {}),
+        leaveLobbyGroup(session.userId).catch(() => {}),
       ]);
     }
     await deleteSession();
