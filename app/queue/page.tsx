@@ -12,8 +12,8 @@ export default async function QueuePage() {
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-10">
-      <div className="flex items-center justify-between mb-8">
-        <div>
+      <div className="flex items-center justify-center gap-8 mb-8">
+        <div className="text-center">
           <h1 className="text-2xl font-bold text-white font-display tracking-wide">
             Specific <span className="text-amber-400">Matchups</span>
           </h1>
