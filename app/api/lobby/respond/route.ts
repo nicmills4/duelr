@@ -60,6 +60,15 @@ export async function POST(req: NextRequest) {
     champImage: responderLobby?.champImage ?? "",
   };
 
+  // Persist match result in Redis for 10 min so the challenger can retrieve it
+  // if they navigated away and their SSE was closed before accepting.
+  const MATCH_RESULT_TTL = 60 * 10; // 10 minutes
+  await redis.setex(
+    `lobby:match_result:${challenge.challengerId}`,
+    MATCH_RESULT_TTL,
+    JSON.stringify(opponentForChallenger)
+  );
+
   // Notify challenger — their SSE will receive this and show the match card
   await redis.publish(
     notificationChannel(challenge.challengerId),

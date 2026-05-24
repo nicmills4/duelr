@@ -233,6 +233,8 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
           setMatchResult(data.opponent as MatchResult);
           setOutgoing(null);
           setAvailable(false);
+          // Claim the Redis backup so it isn't shown again on next mount
+          fetch("/api/lobby/pending-match").catch(() => {});
         } else if (data.type === "challenge_declined") {
           setOutgoing(null);
         } else if (data.type === "session_expired") {
@@ -316,6 +318,17 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
     const id = setInterval(() => fetchPlayers(), 10_000);
     return () => clearInterval(id);
   }, [fetchPlayers]);
+
+  // On mount: check if a challenge we sent was accepted while we were away.
+  // The server stores the match result in Redis for 10 min so we can recover it.
+  useEffect(() => {
+    fetch("/api/lobby/pending-match")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.match) setMatchResult(d.match);
+      })
+      .catch(() => {});
+  }, []);
 
   // ── Actions ──────────────────────────────────────────────────────────────────
 
