@@ -731,7 +731,7 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
             </h3>
           </div>
           <button
-            onClick={fetchPlayers}
+            onClick={() => fetchPlayers()}
             className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-300 transition-colors"
           >
             {loadingPlayers
