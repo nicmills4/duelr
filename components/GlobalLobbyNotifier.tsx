@@ -12,6 +12,7 @@ import { useState, useEffect, useRef } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
 import { CheckCircle2, X, ArrowRight } from "lucide-react";
+import { playQueuePop } from "@/lib/sounds";
 
 interface PendingMatch {
   riotId:    string;
@@ -36,6 +37,7 @@ export default function GlobalLobbyNotifier() {
         .then((r) => r.json())
         .then((d: { match: PendingMatch | null }) => {
           if (d.match) {
+            playQueuePop();
             setMatch(d.match);
             // Stop polling once we have a result to show
             if (pollRef.current) {
