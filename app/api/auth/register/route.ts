@@ -3,6 +3,8 @@ import { getAccountByRiotId, parseRiotId, type Region } from "@/lib/riot";
 import { prisma } from "@/lib/prisma";
 import { createSession } from "@/lib/session";
 import { hashPassword } from "@/lib/auth";
+import { createVerificationToken } from "@/lib/verify-token";
+import { sendVerificationEmail } from "@/lib/email";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -43,28 +45,42 @@ export async function POST(req: NextRequest) {
     const passwordHash = await hashPassword(password);
 
     // ── Upsert user — upgrade guest → full if they already exist ──────────────
+    const normalizedEmail = email.toLowerCase();
+    const isNewEmail = !existingEmail || existingEmail.emailVerified === false;
+
     const user = await prisma.user.upsert({
       where: { puuid: account.puuid },
       update: {
-        riotId:      normalizedRiotId,
+        riotId:        normalizedRiotId,
         region,
-        email:       email.toLowerCase(),
+        email:         normalizedEmail,
         passwordHash,
-        accountType: "full",
+        accountType:   "full",
+        // Reset verification if they're changing their email
+        emailVerified: existingEmail?.email === normalizedEmail
+          ? (existingEmail.emailVerified ?? false)
+          : false,
       },
       create: {
-        puuid:       account.puuid,
-        riotId:      normalizedRiotId,
+        puuid:         account.puuid,
+        riotId:        normalizedRiotId,
         region,
-        email:       email.toLowerCase(),
+        email:         normalizedEmail,
         passwordHash,
-        accountType: "full",
+        accountType:   "full",
+        emailVerified: false,
       },
     });
 
     await createSession(user.id);
 
-    return NextResponse.json({ ok: true, riotId: normalizedRiotId });
+    // Send verification email (non-blocking — don't fail the request if email fails)
+    if (!user.emailVerified) {
+      const token = await createVerificationToken(user.id);
+      await sendVerificationEmail(normalizedEmail, token);
+    }
+
+    return NextResponse.json({ ok: true, riotId: normalizedRiotId, emailSent: !user.emailVerified });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
     // Prisma unique constraint on email

@@ -18,11 +18,11 @@
  *   TEST_PASSWORD       Password for TEST_EMAIL account
  */
 
-import { spawn }       from "child_process";
-import { readdir }     from "fs/promises";
-import { writeFileSync } from "fs";
-import { join, resolve } from "path";
-import { fileURLToPath } from "url";
+import { spawn }          from "child_process";
+import { readdir }        from "fs/promises";
+import { writeFileSync }  from "fs";
+import { join, resolve }  from "path";
+import { fileURLToPath, pathToFileURL } from "url";
 
 import { HttpClient, BASE_URL } from "./helpers/http.mjs";
 
@@ -258,7 +258,7 @@ async function main() {
 
   const suiteModules = [];
   for (const f of files) {
-    const mod = await import(join(SUITES_DIR, f));
+    const mod = await import(pathToFileURL(join(SUITES_DIR, f)).href);
     suiteModules.push(mod.suite);
   }
 

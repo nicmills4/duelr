@@ -7,6 +7,7 @@ import NavLinks from "@/components/NavLinks";
 import AdBanner from "@/components/AdBanner";
 import GlobalLobbyNotifier from "@/components/GlobalLobbyNotifier";
 import { Settings } from "lucide-react";
+import ResendVerificationButton from "@/components/ResendVerificationButton";
 
 const bebasNeue = Bebas_Neue({
   weight: "400",
@@ -74,6 +75,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             )}
           </div>
         </header>
+        {/* Email verification banner */}
+        {session?.user.accountType === "full" && session.user.emailVerified === false && (
+          <div className="bg-amber-500/10 border-b border-amber-500/20 text-amber-300 text-xs text-center py-2 px-4 flex items-center justify-center gap-3">
+            <span>Please verify your email address — check your inbox.</span>
+            <ResendVerificationButton />
+          </div>
+        )}
         {/* AdBanner: temporarily disabled until Stripe/Premium is live */}
         {/* {session && !session.user.isPremium && <AdBanner />} */}
         <main>{children}</main>

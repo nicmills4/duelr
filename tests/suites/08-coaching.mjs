@@ -18,23 +18,23 @@ export const suite = {
 
     // ── Public coach listing ──────────────────────────────────────────────────
     {
-      name: "GET /api/coaching — returns 200 without auth",
+      name: "GET /api/coaching/coaches — returns 200 without auth",
       async run(http) {
-        const { res } = await http.get("/api/coaching");
+        const { res } = await http.get("/api/coaching/coaches");
         assertStatus(res, 200);
       },
     },
     {
-      name: "GET /api/coaching — response has 'coaches' array",
+      name: "GET /api/coaching/coaches — response has 'coaches' array",
       async run(http) {
-        const { data } = await http.get("/api/coaching");
+        const { data } = await http.get("/api/coaching/coaches");
         assertArray(data.coaches, "coaches");
       },
     },
     {
-      name: "GET /api/coaching — each coach has required fields",
+      name: "GET /api/coaching/coaches — each coach has required fields",
       async run(http) {
-        const { data } = await http.get("/api/coaching");
+        const { data } = await http.get("/api/coaching/coaches");
         for (const c of data.coaches) {
           assert("displayCode"  in c, "coach missing displayCode");
           assert("verifiedTier" in c, "coach missing verifiedTier");
@@ -45,12 +45,10 @@ export const suite = {
       },
     },
     {
-      name: "GET /api/coaching — only approved and active coaches returned",
+      name: "GET /api/coaching/coaches — no private fields exposed",
       async run(http) {
-        const { data } = await http.get("/api/coaching");
+        const { data } = await http.get("/api/coaching/coaches");
         for (const c of data.coaches) {
-          // The API should only return isApproved + isActive coaches
-          // We can't directly check the DB field, but we verify no private fields leak
           assert(!("passwordHash" in c), "passwordHash should not be exposed");
           assert(!("email" in c),        "email should not be exposed in public coach list");
         }

@@ -44,11 +44,11 @@ export const suite = {
       },
     },
     {
-      name: "GET /api/queue/depth — response has numeric count",
+      name: "GET /api/queue/depth — response has numeric depth",
       async run(http) {
         const { data } = await http.get("/api/queue/depth");
-        assert(typeof data.count === "number", `count should be number, got ${typeof data.count}`);
-        assert(data.count >= 0, "count should be non-negative");
+        assert(typeof data.depth === "number", `depth should be number, got ${typeof data.depth}`);
+        assert(data.depth >= 0, "depth should be non-negative");
       },
     },
     {
@@ -134,10 +134,12 @@ export const suite = {
     },
     {
       name: "GET /api/queue/matchup-info — returns shape for known champion",
+      skip: !canTest,
+      skipReason: "TEST_RIOT_ID or TEST_EMAIL/TEST_PASSWORD not set (endpoint requires auth)",
       async run(http) {
+        await loginTestUser(http);
         const { res, data } = await http.get("/api/queue/matchup-info?champion=Zed");
         assertStatus(res, 200);
-        // Should have some matchup data or empty array — just verify 200 + no crash
         assert(data !== null, "should return non-null data");
       },
     },

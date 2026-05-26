@@ -33,16 +33,16 @@ export const suite = {
   tests: [
 
     {
-      name: "GET /api/lobby/available — returns 200 without auth (public read)",
+      name: "GET /api/lobby/public — returns 200 without auth (public read)",
       async run(http) {
-        const { res } = await http.get("/api/lobby/available");
+        const { res } = await http.get("/api/lobby/public");
         assertStatus(res, 200);
       },
     },
     {
-      name: "GET /api/lobby/available — response has 'players' array",
+      name: "GET /api/lobby/public — response has 'players' array",
       async run(http) {
-        const { data } = await http.get("/api/lobby/available");
+        const { data } = await http.get("/api/lobby/public");
         assert(Array.isArray(data.players), "should have players array");
       },
     },
@@ -89,7 +89,7 @@ export const suite = {
       async run(http) {
         await loginTestUser(http);
         await http.post("/api/lobby/available", CHAMP);
-        const { data } = await http.get("/api/lobby/available");
+        const { data } = await http.get("/api/lobby/public");
         assert(Array.isArray(data.players), "players should be array");
         // User should appear (may be 0 if lobby expires quickly, but usually fast enough)
         // Just verify the shape of entries if any

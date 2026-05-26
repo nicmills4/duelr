@@ -21,6 +21,7 @@
     "next": "^15.3.2",
     "react": "^19",
     "react-dom": "^19",
+    "resend": "^6.12.4",
     "stripe": "^22.1.1",
     "tailwind-merge": "^2.6.0"
   },

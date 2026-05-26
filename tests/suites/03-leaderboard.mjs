@@ -16,19 +16,19 @@ export const suite = {
       },
     },
     {
-      name: "GET /api/leaderboard — response is an array",
+      name: "GET /api/leaderboard — response has 'leaderboard' array",
       async run(http) {
         const { data } = await http.get("/api/leaderboard");
-        assertArray(data, "leaderboard");
+        assertArray(data.leaderboard, "leaderboard");
       },
     },
     {
       name: "GET /api/leaderboard — each entry has required fields",
       async run(http) {
         const { data } = await http.get("/api/leaderboard");
-        assertArray(data, "leaderboard");
-        if (data.length > 0) {
-          assertHasKeys(data[0], ["riotId", "wins", "losses"], "leaderboard entry");
+        assertArray(data.leaderboard, "leaderboard");
+        if (data.leaderboard.length > 0) {
+          assertHasKeys(data.leaderboard[0], ["riotId", "wins", "losses"], "leaderboard entry");
         }
       },
     },
@@ -36,8 +36,8 @@ export const suite = {
       name: "GET /api/leaderboard — wins and losses are non-negative integers",
       async run(http) {
         const { data } = await http.get("/api/leaderboard");
-        assertArray(data, "leaderboard");
-        for (const entry of data) {
+        assertArray(data.leaderboard, "leaderboard");
+        for (const entry of data.leaderboard) {
           assert(Number.isInteger(entry.wins)   && entry.wins   >= 0, `wins invalid: ${entry.wins}`);
           assert(Number.isInteger(entry.losses) && entry.losses >= 0, `losses invalid: ${entry.losses}`);
         }

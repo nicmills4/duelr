@@ -3,13 +3,15 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { REGIONS } from "@/lib/riot";
-import { AlertCircle, CheckCircle2, Loader2, ChevronDown, ChevronUp } from "lucide-react";
+import { AlertCircle, CheckCircle2, Loader2, ChevronDown, ChevronUp, ShieldCheck, ShieldAlert } from "lucide-react";
+import ResendVerificationButton from "@/components/ResendVerificationButton";
 
 interface Props {
-  riotId:      string;
-  region:      string;
-  email:       string | null;
-  accountType: string;
+  riotId:        string;
+  region:        string;
+  email:         string | null;
+  accountType:   string;
+  emailVerified: boolean;
 }
 
 // ─── Shared primitives ────────────────────────────────────────────────────────
@@ -265,24 +267,45 @@ function PasswordSection() {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export default function SettingsForm({ riotId, region, email, accountType }: Props) {
+export default function SettingsForm({ riotId, region, email, accountType, emailVerified }: Props) {
   const isFull = accountType === "full";
 
   return (
     <div className="space-y-3">
       {/* Current account info */}
-      <div className="card mb-6 flex items-center justify-between">
-        <div>
-          <p className="text-sm font-semibold text-white">{riotId}</p>
-          <p className="text-xs text-gray-500">{email ?? "Guest account"} · {region.toUpperCase()}</p>
+      <div className="card mb-6 space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-semibold text-white">{riotId}</p>
+            <p className="text-xs text-gray-500">{email ?? "Guest account"} · {region.toUpperCase()}</p>
+          </div>
+          <span className={`text-xs font-medium px-2 py-1 rounded-full ${
+            isFull
+              ? "bg-emerald-500/10 text-emerald-400"
+              : "bg-gray-700 text-gray-400"
+          }`}>
+            {isFull ? "Full account" : "Guest"}
+          </span>
         </div>
-        <span className={`text-xs font-medium px-2 py-1 rounded-full ${
-          isFull
-            ? "bg-emerald-500/10 text-emerald-400"
-            : "bg-gray-700 text-gray-400"
-        }`}>
-          {isFull ? "Full account" : "Guest"}
-        </span>
+
+        {/* Email verification status */}
+        {isFull && (
+          <div className={`flex items-center justify-between rounded-lg px-3 py-2 text-xs ${
+            emailVerified
+              ? "bg-emerald-500/10 border border-emerald-500/20"
+              : "bg-amber-500/10 border border-amber-500/20"
+          }`}>
+            <div className="flex items-center gap-2">
+              {emailVerified
+                ? <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                : <ShieldAlert  className="w-3.5 h-3.5 text-amber-400"  />}
+              <span className={emailVerified ? "text-emerald-400" : "text-amber-400"}>
+                {emailVerified ? "Email verified" : "Email not verified"}
+              </span>
+            </div>
+            {!emailVerified && <ResendVerificationButton />}
+          </div>
+        )}
       </div>
 
       <Section

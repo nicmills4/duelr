@@ -23,6 +23,7 @@ export default async function SettingsPage() {
         region={session.user.region}
         email={session.user.email ?? null}
         accountType={session.user.accountType}
+        emailVerified={session.user.emailVerified ?? false}
       />
     </div>
   );
