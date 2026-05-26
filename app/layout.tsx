@@ -82,8 +82,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <ResendVerificationButton />
           </div>
         )}
-        {/* AdBanner: temporarily disabled until Stripe/Premium is live */}
-        {/* {session && !session.user.isPremium && <AdBanner />} */}
+        {session && !session.user.isPremium && <AdBanner />}
         <main>{children}</main>
         {/* Global toast: fires when a lobby challenge is accepted off-page */}
         {session && <GlobalLobbyNotifier />}
