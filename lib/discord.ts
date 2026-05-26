@@ -45,11 +45,22 @@ export async function createMatchVoiceChannel(
 
   try {
     // 1. Create the voice channel
+    // Explicitly grant @everyone VIEW_CHANNEL (1024) + CONNECT (1048576)
+    // so the invite works even if the parent category is role-restricted.
+    // In Discord the @everyone role ID always equals the guild ID.
     const channel = await discordFetch(`/guilds/${guildId}/channels`, "POST", {
       name,
       type:       2, // GUILD_VOICE
       user_limit: userLimit,
       ...(catId ? { parent_id: catId } : {}),
+      permission_overwrites: [
+        {
+          id:    guildId,
+          type:  0, // role
+          allow: String(1024 + 1048576), // VIEW_CHANNEL + CONNECT
+          deny:  "0",
+        },
+      ],
     }) as { id: string } | null;
 
     if (!channel?.id) return null;
