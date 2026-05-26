@@ -6,6 +6,7 @@ import { getSession } from "@/lib/session";
 import NavLinks from "@/components/NavLinks";
 import AdBanner from "@/components/AdBanner";
 import GlobalLobbyNotifier from "@/components/GlobalLobbyNotifier";
+import { Settings } from "lucide-react";
 
 const bebasNeue = Bebas_Neue({
   weight: "400",
@@ -62,6 +63,15 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <span className="font-display text-2xl tracking-wide"><span className="text-amber-400">Duel</span><span className="text-white">r</span></span>
             </a>
             <NavLinks accountType={accountType as "none" | "guest" | "full"} />
+            {session && (
+              <a
+                href="/settings"
+                className="ml-2 p-1.5 rounded-lg text-gray-500 hover:text-gray-300 hover:bg-dark-700 transition-colors"
+                aria-label="Account settings"
+              >
+                <Settings className="w-4 h-4" />
+              </a>
+            )}
           </div>
         </header>
         {/* AdBanner: temporarily disabled until Stripe/Premium is live */}
