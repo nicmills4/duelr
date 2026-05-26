@@ -57,7 +57,7 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
     });
     setLoading(false);
     if (res.ok) { onLogin(); }
-    else { const d = await res.json(); setError(d.error || "Wrong password"); }
+    else { const d = await res.json().catch(() => ({})); setError(d.error || `Login failed (${res.status})`); }
   }
 
   return (
@@ -125,7 +125,7 @@ function AddCoachModal({ onClose, onSaved }: { onClose: () => void; onSaved: () 
     });
     setLoading(false);
     if (res.ok) { onSaved(); onClose(); }
-    else { const d = await res.json(); setError(d.error || "Failed"); }
+    else { const d = await res.json().catch(() => ({})); setError(d.error || `Server error ${res.status}`); }
   }
 
   return (
@@ -240,7 +240,7 @@ function EditCoachModal({ coach, onClose, onSaved }: {
     });
     setLoading(false);
     if (res.ok) { onSaved(); onClose(); }
-    else { const d = await res.json(); setError(d.error || "Failed"); }
+    else { const d = await res.json().catch(() => ({})); setError(d.error || `Server error ${res.status}`); }
   }
 
   return (
