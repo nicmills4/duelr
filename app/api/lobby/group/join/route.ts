@@ -8,6 +8,7 @@ import { redis, notificationChannel } from "@/lib/redis";
 import type { SlotKey, DuoRole, LobbyGroup, GroupSlot } from "@/lib/lobby-types";
 import { ALL_SLOTS, SLOT_ROLE, groupIsFull } from "@/lib/lobby-types";
 import { BRACKET_ORDER } from "@/lib/constants";
+import { createMatchVoiceChannel } from "@/lib/discord";
 
 const VALID_SLOTS = new Set<string>(["team1_adc", "team1_support", "team2_adc", "team2_support"]);
 const CHAMPION_RE = /^[a-zA-Z0-9]{1,50}$/;
@@ -71,12 +72,21 @@ export async function POST(req: NextRequest) {
 
   const { group, isFull } = result;
 
+  let voiceChannelUrl: string | undefined;
+
   if (isFull) {
-    // Build team summaries and notify all 4 members
+    // Build team summaries, create voice channel, notify all 4 members
     const team1 = [group.team1_adc, group.team1_support].filter(Boolean) as GroupSlot[];
     const team2 = [group.team2_adc, group.team2_support].filter(Boolean) as GroupSlot[];
 
-    await notifyGroup(group, { type: "group_ready", team1, team2 });
+    voiceChannelUrl = (await createMatchVoiceChannel("2v2-bot-lane", 4)) ?? undefined;
+
+    await notifyGroup(group, {
+      type: "group_ready",
+      team1,
+      team2,
+      voiceChannelUrl,
+    });
   } else {
     // Notify existing members that someone new joined
     // (exclude the joiner — they already know)
@@ -94,5 +104,5 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  return NextResponse.json({ ok: true, group, isFull });
+  return NextResponse.json({ ok: true, group, isFull, voiceChannelUrl });
 }

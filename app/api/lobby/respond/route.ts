@@ -4,6 +4,7 @@ import { getChallenge, deleteChallenge, leaveLobby } from "@/lib/lobby";
 import { redis, notificationChannel } from "@/lib/redis";
 import { prisma } from "@/lib/prisma";
 import type { LobbyEntry } from "@/lib/lobby-types";
+import { createMatchVoiceChannel } from "@/lib/discord";
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
@@ -47,17 +48,19 @@ export async function POST(req: NextRequest) {
 
   const responderLobby = responderRaw ? (JSON.parse(responderRaw) as LobbyEntry) : null;
 
-  // Remove both players from the lobby
-  await Promise.all([
+  // Remove both players from the lobby and create a voice channel in parallel
+  const [, , voiceChannelUrl] = await Promise.all([
     leaveLobby(challenge.challengerId),
     leaveLobby(responderId),
+    createMatchVoiceChannel("1v1-match", 2),
   ]);
 
   const opponentForChallenger = {
-    riotId: responderUser?.riotId ?? "Unknown",
-    region: responderUser?.region ?? "",
-    champName: responderLobby?.champName ?? "",
-    champImage: responderLobby?.champImage ?? "",
+    riotId:          responderUser?.riotId ?? "Unknown",
+    region:          responderUser?.region ?? "",
+    champName:       responderLobby?.champName ?? "",
+    champImage:      responderLobby?.champImage ?? "",
+    voiceChannelUrl: voiceChannelUrl ?? undefined,
   };
 
   // Persist match result in Redis for 10 min so the challenger can retrieve it
@@ -77,12 +80,13 @@ export async function POST(req: NextRequest) {
 
   // Return challenger data to the responder inline (they accepted synchronously)
   return NextResponse.json({
-    ok: true,
+    ok:       true,
     accepted: true,
     challenger: {
-      riotId: challenge.challengerRiotId,
-      champName: challenge.challengerChampName,
-      champImage: challenge.challengerChampImage,
+      riotId:          challenge.challengerRiotId,
+      champName:       challenge.challengerChampName,
+      champImage:      challenge.challengerChampImage,
+      voiceChannelUrl: voiceChannelUrl ?? undefined,
     },
   });
 }
