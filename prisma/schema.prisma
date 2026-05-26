@@ -16,6 +16,11 @@ model User {
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
+  // Account tier: "guest" = Riot ID only, "full" = email + password
+  accountType  String  @default("guest")
+  email        String? @unique
+  passwordHash String?
+
   isPremium            Boolean  @default(false)
   stripeCustomerId     String?  @unique
   stripeSubscriptionId String?  @unique

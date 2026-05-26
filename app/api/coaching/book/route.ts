@@ -14,6 +14,8 @@ export const dynamic = "force-dynamic";
 export async function POST(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  if (session.user.accountType !== "full")
+    return NextResponse.json({ error: "Full account required" }, { status: 403 });
 
   const body = await req.json().catch(() => null);
   if (!body)  return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });

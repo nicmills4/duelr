@@ -28,6 +28,11 @@ export const metadata: Metadata = {
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession();
+  const accountType = !session
+    ? "none"
+    : session.user.accountType === "full"
+    ? "full"
+    : "guest";
   return (
     <html lang="en" className={`dark ${bebasNeue.variable} ${exo2.variable}`}>
       <body className="min-h-screen bg-dark-900 font-sans">
@@ -56,7 +61,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <a href="/" className="flex items-center gap-2">
               <span className="font-display text-2xl tracking-wide"><span className="text-amber-400">Duel</span><span className="text-white">r</span></span>
             </a>
-            <NavLinks isLoggedIn={!!session} />
+            <NavLinks accountType={accountType as "none" | "guest" | "full"} />
           </div>
         </header>
         {/* AdBanner: temporarily disabled until Stripe/Premium is live */}

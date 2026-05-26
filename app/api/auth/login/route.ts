@@ -27,11 +27,11 @@ export async function POST(req: NextRequest) {
     // Normalised Riot ID (use exact casing from Riot)
     const normalizedRiotId = `${account.gameName}#${account.tagLine}`;
 
-    // Upsert user
+    // Upsert user — never downgrade a full account back to guest
     const user = await prisma.user.upsert({
       where: { puuid: account.puuid },
       update: { riotId: normalizedRiotId, region },
-      create: { puuid: account.puuid, riotId: normalizedRiotId, region },
+      create: { puuid: account.puuid, riotId: normalizedRiotId, region, accountType: "guest" },
     });
 
     await createSession(user.id);

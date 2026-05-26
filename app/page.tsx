@@ -5,9 +5,20 @@ import { Swords, Users, Zap, ShieldCheck } from "lucide-react";
 import LivePlayerCount from "@/components/LivePlayerCount";
 import LobbyPreview from "@/components/LobbyPreview";
 
-export default async function HomePage() {
-  const session = await getSession();
+type ValidTab = "guest" | "signup" | "login";
+const VALID_TABS = new Set<string>(["guest", "signup", "login"]);
+
+export default async function HomePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>;
+}) {
+  const [session, sp] = await Promise.all([getSession(), searchParams]);
   if (session) redirect("/lobby");
+
+  const defaultTab: ValidTab = VALID_TABS.has(sp.tab ?? "")
+    ? (sp.tab as ValidTab)
+    : "guest";
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-16">
@@ -30,8 +41,8 @@ export default async function HomePage() {
         {/* Login card */}
         <div className="space-y-4">
           <div className="card">
-            <h2 className="text-xl font-bold mb-6 text-white">Connect Your Account</h2>
-            <LoginForm />
+            <h2 className="text-xl font-bold mb-6 text-white">Get Started</h2>
+            <LoginForm defaultTab={defaultTab} />
           </div>
 
           {/* Security disclaimer */}

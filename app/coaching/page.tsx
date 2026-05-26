@@ -1,5 +1,6 @@
 import { getSession } from "@/lib/session";
 import CoachBoard from "@/components/CoachBoard";
+import AccountGate from "@/components/AccountGate";
 import { Shield, Mail } from "lucide-react";
 
 export const metadata = {
@@ -13,8 +14,13 @@ export default async function CoachingPage({
   searchParams: Promise<{ booked?: string; canceled?: string }>;
 }) {
   const [session, sp] = await Promise.all([getSession(), searchParams]);
-  const booked   = !!sp.booked;
-  const canceled = sp.canceled === "1";
+  const booked      = !!sp.booked;
+  const canceled    = sp.canceled === "1";
+  const accountType = !session
+    ? "none"
+    : session.user.accountType === "full"
+    ? "full"
+    : "guest";
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-10">
@@ -70,10 +76,12 @@ export default async function CoachingPage({
         </div>
       )}
 
-      <CoachBoard
-        userId={session?.userId ?? null}
-        bookedId={booked}
-      />
+      <AccountGate accountType={accountType as "none" | "guest" | "full"} featureName="Coaching">
+        <CoachBoard
+          userId={session?.userId ?? null}
+          bookedId={booked}
+        />
+      </AccountGate>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { getSession } from "@/lib/session";
 import PartnerBoard from "@/components/PartnerBoard";
-import PremiumGate from "@/components/PremiumGate";
+import AccountGate from "@/components/AccountGate";
 import { Users2 } from "lucide-react";
 
 export const metadata = {
@@ -9,9 +9,12 @@ export const metadata = {
 };
 
 export default async function PartnersPage() {
-  const session   = await getSession();
-  const isPremium = session?.user?.isPremium ?? false;
-  const isLoggedIn = !!session;
+  const session     = await getSession();
+  const accountType = !session
+    ? "none"
+    : session.user.accountType === "full"
+    ? "full"
+    : "guest";
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-10">
@@ -29,12 +32,12 @@ export default async function PartnersPage() {
         </p>
       </div>
 
-      <PremiumGate isPremium={isPremium} isLoggedIn={isLoggedIn}>
+      <AccountGate accountType={accountType as "none" | "guest" | "full"} featureName="Practice Partners">
         <PartnerBoard
           userId={session?.userId ?? null}
           riotId={session?.user.riotId ?? null}
         />
-      </PremiumGate>
+      </AccountGate>
     </div>
   );
 }

@@ -66,10 +66,14 @@ export async function getSession() {
 
     if (!session || session.expiresAt < new Date()) return null;
 
-    // Populate cache for the next 60 s
-    await redis.setex(sessionCacheKey(sessionId), SESSION_CACHE_TTL, JSON.stringify(session));
+    // Strip passwordHash before caching — never store it in Redis
+    const { passwordHash: _pw, ...safeUser } = session.user as typeof session.user & { passwordHash?: string };
+    const safeSession = { ...session, user: safeUser };
 
-    return session;
+    // Populate cache for the next 60 s
+    await redis.setex(sessionCacheKey(sessionId), SESSION_CACHE_TTL, JSON.stringify(safeSession));
+
+    return safeSession;
   } catch {
     return null;
   }
