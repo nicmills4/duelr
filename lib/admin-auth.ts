@@ -25,7 +25,7 @@ export async function createAdminSession(): Promise<void> {
     secure:   process.env.NODE_ENV === "production",
     sameSite: "lax",
     maxAge:   TTL_HOURS * 3600,
-    path:     "/admin",
+    path:     "/",   // must be "/" so browser sends it to /api/admin/* routes too
   });
 }
 
@@ -43,5 +43,6 @@ export async function verifyAdminSession(): Promise<boolean> {
 
 export async function deleteAdminSession(): Promise<void> {
   const cookieStore = await cookies();
-  cookieStore.delete(COOKIE_NAME);
+  // Must match the path used in createAdminSession to actually clear the cookie
+  cookieStore.set(COOKIE_NAME, "", { maxAge: 0, path: "/" });
 }
