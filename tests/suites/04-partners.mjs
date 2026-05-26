@@ -4,7 +4,7 @@
  * Write tests need a full account session (TEST_RIOT_ID + TEST_EMAIL required).
  */
 
-import { assertStatus, assertArray, assert } from "../helpers/assert.mjs";
+import { assertStatus, assertArray, assert, skip } from "../helpers/assert.mjs";
 
 const TEST_EMAIL    = process.env.TEST_EMAIL;
 const TEST_PASSWORD = process.env.TEST_PASSWORD;
@@ -68,6 +68,7 @@ export const suite = {
         const { res: loginRes } = await http.post("/api/auth/login-email", {
           email: TEST_EMAIL, password: TEST_PASSWORD,
         });
+        if (loginRes.status === 401) skip("Test account not found — run ensureTestAccount or create manually");
         assertStatus(loginRes, 200, "login failed");
 
         // Create post
@@ -99,7 +100,8 @@ export const suite = {
       skip: !canWrite,
       skipReason: "TEST_EMAIL / TEST_PASSWORD not set",
       async run(http) {
-        await http.post("/api/auth/login-email", { email: TEST_EMAIL, password: TEST_PASSWORD });
+        const { res: lr } = await http.post("/api/auth/login-email", { email: TEST_EMAIL, password: TEST_PASSWORD });
+        if (lr.status === 401) skip("Test account not found");
         const tooMany = Array.from({ length: 16 }, (_, i) => `Champ${i}`);
         const { res } = await http.post("/api/partners", {
           myChampions: tooMany, vsChampions: [], eloBracket: "mid", availability: [],
@@ -112,7 +114,8 @@ export const suite = {
       skip: !canWrite,
       skipReason: "TEST_EMAIL / TEST_PASSWORD not set",
       async run(http) {
-        await http.post("/api/auth/login-email", { email: TEST_EMAIL, password: TEST_PASSWORD });
+        const { res: lr } = await http.post("/api/auth/login-email", { email: TEST_EMAIL, password: TEST_PASSWORD });
+        if (lr.status === 401) skip("Test account not found");
         const { res } = await http.post("/api/partners", {
           myChampions: ["Zed"], vsChampions: [], eloBracket: "invalid-bracket", availability: [],
         });

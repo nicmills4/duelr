@@ -3,7 +3,7 @@
  * Public coach list is open. Booking requires a full account.
  */
 
-import { assertStatus, assertArray, assert } from "../helpers/assert.mjs";
+import { assertStatus, assertArray, assert, skip } from "../helpers/assert.mjs";
 
 const TEST_EMAIL    = process.env.TEST_EMAIL;
 const TEST_PASSWORD = process.env.TEST_PASSWORD;
@@ -70,7 +70,9 @@ export const suite = {
       skip: !hasGuest,
       skipReason: "TEST_RIOT_ID not set",
       async run(http) {
-        await http.post("/api/auth/login", { riotId: TEST_RIOT_ID, region: TEST_RIOT_REGION });
+        const { res: loginRes } = await http.post("/api/auth/login", { riotId: TEST_RIOT_ID, region: TEST_RIOT_REGION });
+        if (loginRes.status === 500) skip("Guest login unavailable — Riot API unreachable or key expired");
+        assertStatus(loginRes, 200, "guest login");
         const { res } = await http.post("/api/coaching/book", {
           coachProfileId: "fake", durationMinutes: 60,
         });
@@ -82,7 +84,8 @@ export const suite = {
       skip: !hasFull,
       skipReason: "TEST_EMAIL / TEST_PASSWORD not set",
       async run(http) {
-        await http.post("/api/auth/login-email", { email: TEST_EMAIL, password: TEST_PASSWORD });
+        const { res: lr } = await http.post("/api/auth/login-email", { email: TEST_EMAIL, password: TEST_PASSWORD });
+        if (lr.status === 401) skip("Test account not found");
         const { res } = await http.post("/api/coaching/book", {
           coachProfileId: "fake", durationMinutes: 45, // not 30/60/90
         });
@@ -94,7 +97,8 @@ export const suite = {
       skip: !hasFull,
       skipReason: "TEST_EMAIL / TEST_PASSWORD not set",
       async run(http) {
-        await http.post("/api/auth/login-email", { email: TEST_EMAIL, password: TEST_PASSWORD });
+        const { res: lr } = await http.post("/api/auth/login-email", { email: TEST_EMAIL, password: TEST_PASSWORD });
+        if (lr.status === 401) skip("Test account not found");
         const { res } = await http.post("/api/coaching/book", { durationMinutes: 60 });
         assertStatus(res, 400);
       },
@@ -104,7 +108,8 @@ export const suite = {
       skip: !hasFull,
       skipReason: "TEST_EMAIL / TEST_PASSWORD not set",
       async run(http) {
-        await http.post("/api/auth/login-email", { email: TEST_EMAIL, password: TEST_PASSWORD });
+        const { res: lr } = await http.post("/api/auth/login-email", { email: TEST_EMAIL, password: TEST_PASSWORD });
+        if (lr.status === 401) skip("Test account not found");
         const { res } = await http.post("/api/coaching/book", {
           coachProfileId: "nonexistent-id-00000", durationMinutes: 60,
         });

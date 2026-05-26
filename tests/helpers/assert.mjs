@@ -1,6 +1,24 @@
 /**
  * Tiny assertion helpers — throw plain Error on failure so runner catches them.
+ * Throw a SkipError (via skip()) to mark a test as skipped at runtime.
  */
+
+export class SkipError extends Error {
+  constructor(reason) {
+    super(reason);
+    this.name  = "SkipError";
+    this.isSkip = true;
+  }
+}
+
+/**
+ * Call inside a test's run() to skip it at runtime (e.g. when an upstream
+ * dependency like the Riot API is unavailable). Counts as "skipped" in the
+ * results, not "failed".
+ */
+export function skip(reason = "Skipped at runtime") {
+  throw new SkipError(reason);
+}
 
 export function assert(condition, message) {
   if (!condition) throw new Error(message ?? "Assertion failed");

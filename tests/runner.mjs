@@ -20,9 +20,43 @@
 
 import { spawn }          from "child_process";
 import { readdir }        from "fs/promises";
-import { writeFileSync }  from "fs";
+import { readFileSync, writeFileSync } from "fs";
 import { join, resolve }  from "path";
 import { fileURLToPath, pathToFileURL } from "url";
+
+// ─── .env loader ──────────────────────────────────────────────────────────────
+// Plain `node` doesn't auto-load .env like Next.js does.
+// This must run before any other code that reads process.env.
+(function loadDotEnv() {
+  try {
+    const envPath = resolve(fileURLToPath(new URL(".", import.meta.url)), "..", ".env");
+    const lines   = readFileSync(envPath, "utf8").split(/\r?\n/);
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+      const eq = trimmed.indexOf("=");
+      if (eq === -1) continue;
+      const key = trimmed.slice(0, eq).trim();
+      if (key in process.env) continue; // never overwrite existing env (e.g. CI)
+      let val = trimmed.slice(eq + 1);   // keep leading whitespace until we parse
+      val = val.trim();
+      // Strip surrounding quotes (single or double)
+      if (
+        (val.startsWith('"') && val.endsWith('"')) ||
+        (val.startsWith("'") && val.endsWith("'"))
+      ) {
+        val = val.slice(1, -1);
+      } else {
+        // Only strip trailing inline comments that follow a space/tab then #
+        // This preserves values like  TEST_RIOT_ID=Katerpiller#NA1
+        val = val.replace(/\s+#.*$/, "");
+      }
+      process.env[key] = val;
+    }
+  } catch {
+    // .env file not present — silently continue; env vars may be set externally
+  }
+}());
 
 import { HttpClient, BASE_URL } from "./helpers/http.mjs";
 
@@ -142,10 +176,52 @@ async function ensureTestAccount() {
 
   if (regRes.ok) {
     console.log(green("✓") + gray(" Registered successfully"));
+    return;
+  }
+
+  // 3. Registration failed (e.g. Riot API key expired) — try the dev-only seed endpoint
+  const d = await regRes.json().catch(() => ({}));
+  process.stdout.write(
+    yellow("⚠") + gray(` Registration failed: ${d.error ?? regRes.status} — trying seed endpoint… `)
+  );
+
+  // The seed endpoint requires an admin session, so log in first
+  const adminPassword = process.env.ADMIN_PASSWORD;
+  if (!adminPassword) {
+    console.log(yellow("⚠") + gray(" ADMIN_PASSWORD not set — cannot seed test user"));
+    return;
+  }
+
+  const adminLoginRes = await fetch(`${BASE_URL}/api/admin/auth`, {
+    method:  "POST",
+    headers: { "Content-Type": "application/json" },
+    body:    JSON.stringify({ password: adminPassword }),
+  });
+
+  if (!adminLoginRes.ok) {
+    console.log(yellow("⚠") + gray(" Admin login failed — cannot seed test user"));
+    return;
+  }
+
+  // Grab the admin cookie (compatible with Node 18 and 20+)
+  const rawAdminCookies =
+    typeof adminLoginRes.headers.getSetCookie === "function"
+      ? adminLoginRes.headers.getSetCookie()
+      : (adminLoginRes.headers.get("set-cookie") ?? "").split(/,(?=[^ ])/).filter(Boolean);
+  const adminCookies = rawAdminCookies.map(c => c.split(";")[0]).join("; ");
+
+  const seedRes = await fetch(`${BASE_URL}/api/admin/seed-test-user`, {
+    method:  "POST",
+    headers: { "Content-Type": "application/json", Cookie: adminCookies },
+    body:    JSON.stringify({ email, password, riotId, region }),
+  });
+
+  if (seedRes.ok) {
+    console.log(green("✓") + gray(" Seeded via dev endpoint (no Riot API required)"));
   } else {
-    const d = await regRes.json().catch(() => ({}));
-    console.log(yellow("⚠") + gray(` Registration failed: ${d.error ?? regRes.status}`));
-    console.log(gray("    (session-dependent tests will fail until the account is created)"));
+    const sd = await seedRes.json().catch(() => ({}));
+    console.log(yellow("⚠") + gray(` Seed failed: ${sd.error ?? seedRes.status}`));
+    console.log(gray("    (session-dependent tests will still fail)"));
   }
 }
 
@@ -170,7 +246,12 @@ async function runSuite(suite) {
       await test.run(http);
       results.push({ status: "pass", name: test.name, ms: Date.now() - start });
     } catch (err) {
-      results.push({ status: "fail", name: test.name, error: err.message, ms: Date.now() - start });
+      // SkipError thrown at runtime (e.g. upstream API unavailable)
+      if (err?.isSkip) {
+        results.push({ status: "skip", name: test.name, skipReason: err.message });
+      } else {
+        results.push({ status: "fail", name: test.name, error: err.message, ms: Date.now() - start });
+      }
     }
   }
 
