@@ -1,0 +1,47 @@
+/**
+ * Admin session helpers.
+ * Protected by ADMIN_PASSWORD env var — set it in your local .env and in Railway.
+ * Admin JWTs are signed with the same SESSION_SECRET but carry { admin: true }.
+ */
+
+import { SignJWT, jwtVerify } from "jose";
+import { cookies } from "next/headers";
+
+const SECRET      = new TextEncoder().encode(
+  process.env.SESSION_SECRET || "fallback-dev-secret-do-not-use-in-prod"
+);
+const COOKIE_NAME = "duelr_admin";
+const TTL_HOURS   = 12;
+
+export async function createAdminSession(): Promise<void> {
+  const jwt = await new SignJWT({ admin: true })
+    .setProtectedHeader({ alg: "HS256" })
+    .setExpirationTime(`${TTL_HOURS}h`)
+    .sign(SECRET);
+
+  const cookieStore = await cookies();
+  cookieStore.set(COOKIE_NAME, jwt, {
+    httpOnly: true,
+    secure:   process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge:   TTL_HOURS * 3600,
+    path:     "/admin",
+  });
+}
+
+export async function verifyAdminSession(): Promise<boolean> {
+  try {
+    const cookieStore = await cookies();
+    const token = cookieStore.get(COOKIE_NAME)?.value;
+    if (!token) return false;
+    const { payload } = await jwtVerify(token, SECRET);
+    return payload.admin === true;
+  } catch {
+    return false;
+  }
+}
+
+export async function deleteAdminSession(): Promise<void> {
+  const cookieStore = await cookies();
+  cookieStore.delete(COOKIE_NAME);
+}
