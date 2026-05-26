@@ -39,6 +39,18 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             strategy="afterInteractive"
           />
         )}
+        {/* Discord invite banner */}
+        <div className="bg-indigo-600/90 text-white text-xs text-center py-2 px-4">
+          <span className="opacity-90">Join the Duelr community on Discord — find opponents, discuss matchups, and get updates.{" "}</span>
+          <a
+            href="https://discord.gg/sV5xJXQ9Bx"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-semibold underline underline-offset-2 hover:opacity-80 transition-opacity"
+          >
+            Join the Duelr Discord →
+          </a>
+        </div>
         <header className="border-b border-dark-600 bg-dark-800/80 backdrop-blur-sm sticky top-0 z-50">
           <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
             <a href="/" className="flex items-center gap-2">
