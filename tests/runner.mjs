@@ -95,6 +95,60 @@ async function startServer() {
   return proc;
 }
 
+// ─── Test account setup ───────────────────────────────────────────────────────
+
+/**
+ * If TEST_EMAIL + TEST_PASSWORD are set, ensure the account exists before
+ * running the suites. Tries login first; if that fails (404/401), attempts
+ * registration. Logs a warning but does NOT abort if registration fails
+ * (e.g. because the Riot API key is expired) — those tests will just fail
+ * with a clear message rather than silently skipping.
+ */
+async function ensureTestAccount() {
+  const email    = process.env.TEST_EMAIL;
+  const password = process.env.TEST_PASSWORD;
+  const riotId   = process.env.TEST_RIOT_ID;
+  const region   = process.env.TEST_RIOT_REGION ?? "na1";
+
+  if (!email || !password) return; // nothing to set up
+
+  process.stdout.write(gray("  Checking test account… "));
+
+  // 1. Try login
+  const loginRes = await fetch(`${BASE_URL}/api/auth/login-email`, {
+    method:  "POST",
+    headers: { "Content-Type": "application/json" },
+    body:    JSON.stringify({ email, password }),
+  });
+
+  if (loginRes.ok) {
+    console.log(green("✓") + gray(` Account exists (${email})`));
+    return;
+  }
+
+  // 2. Account doesn't exist — try to register
+  if (!riotId) {
+    console.log(yellow("⚠") + gray(" Account not found and TEST_RIOT_ID not set — skipping registration"));
+    return;
+  }
+
+  process.stdout.write(gray(`not found — registering with ${riotId}… `));
+
+  const regRes = await fetch(`${BASE_URL}/api/auth/register`, {
+    method:  "POST",
+    headers: { "Content-Type": "application/json" },
+    body:    JSON.stringify({ riotId, region, email, password }),
+  });
+
+  if (regRes.ok) {
+    console.log(green("✓") + gray(" Registered successfully"));
+  } else {
+    const d = await regRes.json().catch(() => ({}));
+    console.log(yellow("⚠") + gray(` Registration failed: ${d.error ?? regRes.status}`));
+    console.log(gray("    (session-dependent tests will fail until the account is created)"));
+  }
+}
+
 // ─── Result types ─────────────────────────────────────────────────────────────
 
 // { status: "pass"|"fail"|"skip", name, error?, skipReason? }
@@ -193,9 +247,11 @@ async function main() {
     }
   }
 
+  // 2. Ensure test account exists
+  await ensureTestAccount();
   console.log();
 
-  // 2. Load suites in filename order
+  // 3. Load suites
   const files = (await readdir(SUITES_DIR))
     .filter(f => f.endsWith(".mjs"))
     .sort();
