@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyAdminSession } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
-import { getAccountByRiotId, parseRiotId, type Region } from "@/lib/riot";
+import { parseRiotId } from "@/lib/riot";
 
 export const dynamic = "force-dynamic";
 
@@ -48,21 +48,20 @@ export async function POST(req: NextRequest) {
   if (!riotId || !region || !verifiedTier || !hourlyRateDollars)
     return NextResponse.json({ error: "riotId, region, verifiedTier, hourlyRateDollars required" }, { status: 400 });
 
-  // Look up / create the user via Riot API
+  // Validate format only — no Riot API call (admin is trusted)
   const parsed = parseRiotId(riotId);
   if (!parsed)
     return NextResponse.json({ error: "Invalid Riot ID format (GameName#TAG)" }, { status: 400 });
 
-  const account = await getAccountByRiotId(parsed.gameName, parsed.tagLine, region as Region);
-  if (!account)
-    return NextResponse.json({ error: "Riot account not found" }, { status: 404 });
+  const normalizedRiotId = `${parsed.gameName}#${parsed.tagLine}`;
 
-  const normalizedRiotId = `${account.gameName}#${account.tagLine}`;
+  // Use a stable fake PUUID derived from the Riot ID so we never hit the API
+  const fakePuuid = `admin-added-${normalizedRiotId.toLowerCase().replace(/[^a-z0-9]/g, "-")}`;
 
   const user = await prisma.user.upsert({
-    where:  { puuid: account.puuid },
-    update: { riotId: normalizedRiotId, region },
-    create: { puuid: account.puuid, riotId: normalizedRiotId, region, accountType: "guest" },
+    where:  { riotId: normalizedRiotId },
+    update: { region },
+    create: { puuid: fakePuuid, riotId: normalizedRiotId, region, accountType: "guest" },
   });
 
   // Build or update the coach profile
