@@ -7,12 +7,15 @@
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 
-if (process.env.NODE_ENV === "production" && !process.env.SESSION_SECRET) {
-  throw new Error("SESSION_SECRET env var is required in production — set it in Railway/your host.");
+/** Lazy secret — evaluated at request time, not at build/module-load time. */
+function getSecret(): Uint8Array {
+  if (process.env.NODE_ENV === "production" && !process.env.SESSION_SECRET) {
+    throw new Error("SESSION_SECRET env var is required in production — set it in Railway/your host.");
+  }
+  return new TextEncoder().encode(
+    process.env.SESSION_SECRET || "fallback-dev-secret-do-not-use-in-prod"
+  );
 }
-const SECRET      = new TextEncoder().encode(
-  process.env.SESSION_SECRET || "fallback-dev-secret-do-not-use-in-prod"
-);
 const COOKIE_NAME = "duelr_admin";
 const TTL_HOURS   = 12;
 
@@ -20,7 +23,7 @@ export async function createAdminSession(): Promise<void> {
   const jwt = await new SignJWT({ admin: true })
     .setProtectedHeader({ alg: "HS256" })
     .setExpirationTime(`${TTL_HOURS}h`)
-    .sign(SECRET);
+    .sign(getSecret());
 
   const cookieStore = await cookies();
   cookieStore.set(COOKIE_NAME, jwt, {
@@ -37,7 +40,7 @@ export async function verifyAdminSession(): Promise<boolean> {
     const cookieStore = await cookies();
     const token = cookieStore.get(COOKIE_NAME)?.value;
     if (!token) return false;
-    const { payload } = await jwtVerify(token, SECRET);
+    const { payload } = await jwtVerify(token, getSecret());
     return payload.admin === true;
   } catch {
     return false;

@@ -3,12 +3,15 @@ import { cookies } from "next/headers";
 import { prisma } from "./prisma";
 import { redis } from "./redis";
 
-if (process.env.NODE_ENV === "production" && !process.env.SESSION_SECRET) {
-  throw new Error("SESSION_SECRET env var is required in production — set it in Railway/your host.");
+/** Lazy secret — evaluated at request time, not at build/module-load time. */
+function getSecret(): Uint8Array {
+  if (process.env.NODE_ENV === "production" && !process.env.SESSION_SECRET) {
+    throw new Error("SESSION_SECRET env var is required in production — set it in Railway/your host.");
+  }
+  return new TextEncoder().encode(
+    process.env.SESSION_SECRET || "fallback-dev-secret-do-not-use-in-prod"
+  );
 }
-const SECRET = new TextEncoder().encode(
-  process.env.SESSION_SECRET || "fallback-dev-secret-do-not-use-in-prod"
-);
 
 const COOKIE_NAME     = "mt_session";
 const SESSION_TTL_DAYS = 7;
@@ -30,7 +33,7 @@ export async function createSession(userId: string): Promise<string> {
   const jwt = await new SignJWT({ sessionId: record.id })
     .setProtectedHeader({ alg: "HS256" })
     .setExpirationTime(`${SESSION_TTL_DAYS}d`)
-    .sign(SECRET);
+    .sign(getSecret());
 
   const cookieStore = await cookies();
   cookieStore.set(COOKIE_NAME, jwt, {
@@ -50,7 +53,7 @@ export async function getSession() {
   if (!token) return null;
 
   try {
-    const { payload } = await jwtVerify(token, SECRET);
+    const { payload } = await jwtVerify(token, getSecret());
     const sessionId = payload.sessionId as string;
 
     // ── Redis cache hit ──────────────────────────────────────────────────────
@@ -107,7 +110,7 @@ export async function deleteSession() {
 
   if (token) {
     try {
-      const { payload } = await jwtVerify(token, SECRET);
+      const { payload } = await jwtVerify(token, getSecret());
       const sessionId = payload.sessionId as string;
       // Invalidate the Redis cache immediately so the session can't be
       // reused for the remaining cache window after logout.
