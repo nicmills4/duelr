@@ -13,7 +13,7 @@ import { ALL_SLOTS, SLOT_ROLE, userSlotIn, groupIsFull } from "@/lib/lobby-types
 import {
   Swords, Users, CheckCircle2, XCircle, Loader2,
   Radio, RefreshCw, Clock, Filter, X, Shield,
-  UserPlus, LogOut, Crown,
+  UserPlus, LogOut, Crown, Copy, Check,
 } from "lucide-react";
 import { playQueuePop } from "@/lib/sounds";
 
@@ -65,6 +65,34 @@ function useCountdown(expiresAt: number | null): number {
     return () => clearInterval(id);
   }, [expiresAt]);
   return remaining;
+}
+
+// ── Copy Riot ID button ────────────────────────────────────────────────────────
+
+function CopyButton({ text, className = "" }: { text: string; className?: string }) {
+  const [copied, setCopied] = useState(false);
+
+  function handleCopy() {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  return (
+    <button
+      onClick={handleCopy}
+      title="Copy Riot ID"
+      className={`flex items-center gap-1 text-xs px-2 py-1 rounded-lg border transition-all ${
+        copied
+          ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400"
+          : "border-dark-600 bg-dark-700 text-gray-500 hover:text-gray-300 hover:border-gray-500"
+      } ${className}`}
+    >
+      {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+      {copied ? "Copied!" : "Copy ID"}
+    </button>
+  );
 }
 
 // ── Player card (1v1) ─────────────────────────────────────────────────────────
@@ -723,8 +751,11 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
             {team.map((s) => (
               <div key={s.userId} className="flex items-center gap-3">
                 <Image src={s.champImage} alt={s.champName} width={32} height={32} className="rounded-full ring-1 ring-dark-500" />
-                <div>
-                  <p className="text-sm font-semibold text-white">{s.riotId}</p>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold text-white">{s.riotId}</p>
+                    <CopyButton text={s.riotId} />
+                  </div>
                   <p className="text-xs text-gray-400">{s.champName} · {s.role.toUpperCase()}</p>
                 </div>
               </div>
@@ -765,7 +796,10 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
         )}
         <div className="bg-dark-700 border border-dark-600 rounded-xl p-4 text-left space-y-1">
           <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold">Your opponent</p>
-          <p className="text-lg font-bold text-gold-400">{matchResult.riotId}</p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="text-lg font-bold text-gold-400">{matchResult.riotId}</p>
+            <CopyButton text={matchResult.riotId} />
+          </div>
           <p className="text-sm text-gray-400">{matchResult.champName}</p>
         </div>
         <div className="bg-dark-700 border border-dark-600 rounded-xl p-4 text-sm text-gray-400 text-left space-y-2">
