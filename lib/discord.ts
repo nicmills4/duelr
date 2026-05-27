@@ -8,34 +8,13 @@
  *
  * The bot must be in the server with the Manage Channels permission.
  *
- * Note on voice-state detection:
- *   Discord's REST API does not expose who is currently in a voice channel —
- *   that requires a Gateway (WebSocket) connection. Until a Gateway is added,
- *   cleanup is handled via a short TTL (CHANNEL_LIFETIME_MS) + a polling loop
- *   that detects manual deletion. Call deleteVoiceChannel() explicitly whenever
- *   the app knows a match is over (e.g. both players have reported results).
+ * Voice channels are deleted automatically 1 hour after creation via setTimeout.
  */
 
 const DISCORD_API = "https://discord.com/api/v10";
 
-/** Maximum lifetime of a match voice channel (30 min covers any realistic game). */
-const CHANNEL_LIFETIME_MS = 30 * 60 * 1000;
-
-/** How often the cleanup loop checks whether the channel still exists. */
-const POLL_INTERVAL_MS = 2 * 60 * 1000;
-
-/** Grace period before cleanup starts — gives both players time to join. */
-const GRACE_PERIOD_MS = 5 * 60 * 1000;
-
-// ── In-process channel registry ────────────────────────────────────────────────
-// Tracks every channel the bot has created so we can clean them up
-// even if the explicit delete call is never made.
-// Lost on server restart (acceptable trade-off for a Railway deployment).
-const activeChannels = new Map<string, {
-  guildId:    string;
-  intervalId: ReturnType<typeof setInterval>;
-  timeoutId:  ReturnType<typeof setTimeout>;
-}>();
+/** Voice channels are deleted 1 hour after creation. */
+const CHANNEL_LIFETIME_MS = 60 * 60 * 1000;
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -56,58 +35,18 @@ async function discordFetch(path: string, method: string, body?: object) {
   return res.ok ? res.json() : null;
 }
 
-/** Delete a channel and stop all cleanup timers for it. */
-export async function deleteVoiceChannel(channelId: string): Promise<void> {
-  const entry = activeChannels.get(channelId);
-  if (entry) {
-    clearInterval(entry.intervalId);
-    clearTimeout(entry.timeoutId);
-    activeChannels.delete(channelId);
-  }
-  await discordFetch(`/channels/${channelId}`, "DELETE");
-}
-
-/** Start the background poll loop for a channel. */
-function scheduleCleanup(channelId: string, guildId: string) {
-  const createdAt = Date.now();
-
-  // Poll every 2 min — detect manual deletion early.
-  const intervalId = setInterval(async () => {
-    const elapsed = Date.now() - createdAt;
-
-    // Don't delete during the grace period (give players time to join).
-    if (elapsed < GRACE_PERIOD_MS) return;
-
-    // Check if the channel was deleted externally (returns null on 404).
-    const channel = await discordFetch(`/channels/${channelId}`, "GET");
-    if (!channel) {
-      // Channel gone — stop tracking.
-      const entry = activeChannels.get(channelId);
-      if (entry) {
-        clearInterval(entry.intervalId);
-        clearTimeout(entry.timeoutId);
-        activeChannels.delete(channelId);
-      }
-    }
-    // Cannot detect empty-channel state via REST — rely on the hard timeout below.
-  }, POLL_INTERVAL_MS);
-
-  // Hard deadline: always delete after CHANNEL_LIFETIME_MS regardless.
-  const timeoutId = setTimeout(async () => {
-    clearInterval(intervalId);
-    activeChannels.delete(channelId);
-    await discordFetch(`/channels/${channelId}`, "DELETE");
+/** Schedule a channel for deletion after CHANNEL_LIFETIME_MS (1 hour). */
+function scheduleCleanup(channelId: string) {
+  setTimeout(() => {
+    discordFetch(`/channels/${channelId}`, "DELETE");
   }, CHANNEL_LIFETIME_MS);
-
-  activeChannels.set(channelId, { guildId, intervalId, timeoutId });
 }
 
 // ── Public API ─────────────────────────────────────────────────────────────────
 
 /**
  * Creates a temporary Discord voice channel and returns an invite link.
- * The channel auto-deletes after CHANNEL_LIFETIME_MS (30 min) or sooner
- * if deleteVoiceChannel() is called explicitly (e.g. after match reporting).
+ * The channel auto-deletes 1 hour after creation.
  * Returns null if the bot is not configured or the API call fails.
  */
 export async function createMatchVoiceChannel(
@@ -153,8 +92,8 @@ export async function createMatchVoiceChannel(
       return null;
     }
 
-    // 3. Start the background cleanup loop.
-    scheduleCleanup(channel.id, guildId);
+    // 3. Schedule deletion after 1 hour.
+    scheduleCleanup(channel.id);
 
     return { url: `https://discord.gg/${invite.code}`, channelId: channel.id };
   } catch {
