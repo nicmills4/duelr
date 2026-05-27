@@ -60,9 +60,10 @@ interface AdminUser {
   riotId:      string;
   region:      string;
   email:       string | null;
-  accountType: string;
-  isPremium:   boolean;
-  createdAt:   string;
+  accountType:   string;
+  isPremium:     boolean;
+  emailVerified: boolean;
+  createdAt:     string;
   coachProfile: { id: string; isApproved: boolean; isActive: boolean } | null;
 }
 
@@ -678,6 +679,7 @@ function UsersTab() {
                   <th className="pb-2 pr-4 font-medium">Email</th>
                   <th className="pb-2 pr-4 font-medium">Region</th>
                   <th className="pb-2 pr-4 font-medium">Account</th>
+                  <th className="pb-2 pr-4 font-medium">Email</th>
                   <th className="pb-2 pr-4 font-medium">Coach</th>
                   <th className="pb-2 font-medium">Joined</th>
                 </tr>
@@ -702,6 +704,11 @@ function UsersTab() {
                         <option value="full">full</option>
                         <option value="premium">premium</option>
                       </select>
+                    </td>
+                    <td className="py-2.5 pr-4">
+                      {u.email
+                        ? <Badge color={u.emailVerified ? "emerald" : "gray"}>{u.emailVerified ? "verified" : "unverified"}</Badge>
+                        : <span className="text-gray-600">—</span>}
                     </td>
                     <td className="py-2.5 pr-4">
                       {u.coachProfile
