@@ -34,6 +34,14 @@ export async function POST(req: NextRequest) {
       create: { puuid: account.puuid, riotId: normalizedRiotId, region, accountType: "guest" },
     });
 
+    // Block guest login if this Riot ID is already registered as a full account
+    if (user.accountType === "full") {
+      return NextResponse.json(
+        { error: "This Riot ID is linked to an existing account. Please log in with your email and password." },
+        { status: 403 }
+      );
+    }
+
     await createSession(user.id);
 
     return NextResponse.json({ ok: true, riotId: normalizedRiotId });
