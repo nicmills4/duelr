@@ -187,6 +187,13 @@ export const suite = {
         assertStatus(res, 401);
       },
     },
+    {
+      name: "Coaching session detail — GET requires auth (401)",
+      async run(http) {
+        const { res } = await http.get("/api/coaching/session/any-session-id");
+        assertStatus(res, 401);
+      },
+    },
 
     // ── Auth guards — Settings ───────────────────────────────────────────────
     {
