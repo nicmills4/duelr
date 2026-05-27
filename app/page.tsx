@@ -26,7 +26,7 @@ export default async function HomePage({
         <h1 className="font-display text-7xl md:text-8xl tracking-wide">
           <span className="text-amber-400">Duel</span><span className="text-white">r</span>
           <br />
-          <span className="text-gray-300 text-2xl md:text-3xl font-sans font-normal tracking-normal">1v1 Matchmaking for League of Legends</span>
+          <span className="text-gray-300 text-2xl md:text-3xl font-sans font-normal tracking-normal">Matchmaking for League of Legends</span>
         </h1>
         <p className="text-gray-400 max-w-xl mx-auto text-lg">
           The practice tool League players actually need. Jump into the Open Lobby

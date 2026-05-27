@@ -24,7 +24,7 @@ const exo2 = Exo_2({
 });
 
 export const metadata: Metadata = {
-  title: "Duelr — 1v1 Matchmaking",
+  title: "Duelr - League Matchmaking",
   description: "Find your perfect 1v1 practice match in League of Legends",
 };
 
