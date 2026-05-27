@@ -49,18 +49,20 @@ export async function POST(req: NextRequest) {
   const responderLobby = responderRaw ? (JSON.parse(responderRaw) as LobbyEntry) : null;
 
   // Remove both players from the lobby and create a voice channel in parallel
-  const [, , voiceChannelUrl] = await Promise.all([
+  const [, , voiceChannel] = await Promise.all([
     leaveLobby(challenge.challengerId),
     leaveLobby(responderId),
     createMatchVoiceChannel("1v1-match", 2),
   ]);
+
+  const voiceChannelUrl = voiceChannel?.url;
 
   const opponentForChallenger = {
     riotId:          responderUser?.riotId ?? "Unknown",
     region:          responderUser?.region ?? "",
     champName:       responderLobby?.champName ?? "",
     champImage:      responderLobby?.champImage ?? "",
-    voiceChannelUrl: voiceChannelUrl ?? undefined,
+    voiceChannelUrl,
   };
 
   // Persist match result in Redis for 10 min so the challenger can retrieve it

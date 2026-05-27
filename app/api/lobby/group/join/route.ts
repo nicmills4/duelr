@@ -79,7 +79,7 @@ export async function POST(req: NextRequest) {
     const team1 = [group.team1_adc, group.team1_support].filter(Boolean) as GroupSlot[];
     const team2 = [group.team2_adc, group.team2_support].filter(Boolean) as GroupSlot[];
 
-    voiceChannelUrl = (await createMatchVoiceChannel("2v2-bot-lane", 4)) ?? undefined;
+    voiceChannelUrl = (await createMatchVoiceChannel("2v2-bot-lane", 4))?.url ?? undefined;
 
     await notifyGroup(group, {
       type: "group_ready",
