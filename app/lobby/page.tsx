@@ -2,6 +2,7 @@ import { getSession } from "@/lib/session";
 import { redirect } from "next/navigation";
 import LobbyBrowser from "@/components/LobbyBrowser";
 import LogoutButton from "@/components/LogoutButton";
+import SuggestedMatchups from "@/components/SuggestedMatchups";
 
 export default async function LobbyPage() {
   const session = await getSession();
@@ -29,6 +30,7 @@ export default async function LobbyPage() {
       </div>
 
       <LobbyBrowser riotId={session.user.riotId} userId={session.userId} />
+      <SuggestedMatchups />
     </div>
   );
 }

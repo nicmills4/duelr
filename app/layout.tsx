@@ -5,6 +5,7 @@ import "./globals.css";
 import { getSession } from "@/lib/session";
 import NavLinks from "@/components/NavLinks";
 import AdBanner from "@/components/AdBanner";
+import AdBlockModal from "@/components/AdBlockModal";
 import GlobalLobbyNotifier from "@/components/GlobalLobbyNotifier";
 import { Settings } from "lucide-react";
 import ResendVerificationButton from "@/components/ResendVerificationButton";
@@ -83,6 +84,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           </div>
         )}
         {session && !session.user.isPremium && <AdBanner />}
+        {!session?.user.isPremium && <AdBlockModal />}
         <main>{children}</main>
         {/* Global toast: fires when a lobby challenge is accepted off-page */}
         {session && <GlobalLobbyNotifier />}
