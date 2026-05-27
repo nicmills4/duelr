@@ -102,11 +102,16 @@ export interface MatchParticipant {
   teamId: number;
   teamPosition: string;
   win: boolean;
+  firstBloodKill: boolean; // true for the player who scored first blood
+  kills: number;
+  deaths: number;
 }
 
 export interface MatchDto {
   metadata: { matchId: string; participants: string[] };
   info: {
+    gameCreation: number; // epoch ms when the game was created
+    gameType:     string; // "CUSTOM_GAME" | "MATCHED_GAME" etc.
     participants: MatchParticipant[];
   };
 }
@@ -117,6 +122,32 @@ export async function getMatch(matchId: string, routing: string) {
     `https://${routing}.api.riotgames.com/lol/match/v5/matches/${matchId}`
   );
   return data as MatchDto | null;
+}
+
+/**
+ * Fetch recent custom-game match IDs for a given PUUID.
+ * Uses queue=0 (custom games) and startTime to limit results to after
+ * the Duelr match was created.
+ *
+ * @param afterMs  epoch milliseconds — only return games started after this
+ * @param count    max IDs to return (default 5)
+ */
+export async function getRecentCustomMatchIds(
+  puuid:   string,
+  routing: string,
+  afterMs: number,
+  count    = 5,
+): Promise<string[] | null> {
+  const params = new URLSearchParams({
+    queue:     "0",                               // queue ID 0 = custom game
+    startTime: String(Math.floor(afterMs / 1000)), // Riot expects epoch seconds
+    start:     "0",
+    count:     String(count),
+  });
+  const data = await riotFetch(
+    `https://${routing}.api.riotgames.com/lol/match/v5/matches/by-puuid/${puuid}/ids?${params}`
+  );
+  return data as string[] | null;
 }
 
 // League v4 — ranked entries for a summoner

@@ -5,6 +5,7 @@ import { redis, notificationChannel } from "@/lib/redis";
 import { prisma } from "@/lib/prisma";
 import type { LobbyEntry } from "@/lib/lobby-types";
 import { createMatchVoiceChannel } from "@/lib/discord";
+import type { LobbyPlayer } from "@/lib/lobby-types";
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
@@ -48,11 +49,20 @@ export async function POST(req: NextRequest) {
 
   const responderLobby = responderRaw ? (JSON.parse(responderRaw) as LobbyEntry) : null;
 
-  // Remove both players from the lobby and create a voice channel in parallel
-  const [, , voiceChannel] = await Promise.all([
+  // Remove both players from the lobby, create voice channel, persist Match row
+  const [, , voiceChannel, dbMatch] = await Promise.all([
     leaveLobby(challenge.challengerId),
     leaveLobby(responderId),
     createMatchVoiceChannel("1v1-match", 2),
+    prisma.match.create({
+      data: {
+        playerAId:  challenge.challengerId,
+        playerBId:  responderId,
+        champA:     challenge.challengerChampion,
+        champB:     responderLobby?.myChampion ?? "Unknown",
+        eloBracket: challenge.challengerElo,
+      },
+    }),
   ]);
 
   const voiceChannelUrl = voiceChannel?.url;
