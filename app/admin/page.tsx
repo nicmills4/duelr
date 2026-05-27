@@ -61,8 +61,17 @@ interface AdminUser {
   region:      string;
   email:       string | null;
   accountType: string;
+  isPremium:   boolean;
   createdAt:   string;
   coachProfile: { id: string; isApproved: boolean; isActive: boolean } | null;
+}
+
+type UserTier = "guest" | "full" | "premium";
+
+function userTier(u: AdminUser): UserTier {
+  if (u.isPremium) return "premium";
+  if (u.accountType === "full") return "full";
+  return "guest";
 }
 
 // ─── Login Screen ─────────────────────────────────────────────────────────────
@@ -611,13 +620,11 @@ function UsersTab() {
 
   useEffect(() => { load("", 1); }, [load]);
 
-  async function toggleAccountType(userId: string, current: string) {
-    const next = current === "full" ? "guest" : "full";
-    if (!confirm(`Change account type to "${next}"?`)) return;
+  async function setTier(userId: string, tier: UserTier) {
     await fetch("/api/admin/users", {
       method:  "PATCH",
       headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({ userId, accountType: next }),
+      body:    JSON.stringify({ userId, tier }),
     });
     load(query, page);
   }
@@ -672,8 +679,7 @@ function UsersTab() {
                   <th className="pb-2 pr-4 font-medium">Region</th>
                   <th className="pb-2 pr-4 font-medium">Account</th>
                   <th className="pb-2 pr-4 font-medium">Coach</th>
-                  <th className="pb-2 pr-4 font-medium">Joined</th>
-                  <th className="pb-2 font-medium">Actions</th>
+                  <th className="pb-2 font-medium">Joined</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-800/50">
@@ -683,23 +689,26 @@ function UsersTab() {
                     <td className="py-2.5 pr-4 text-gray-400">{u.email ?? "—"}</td>
                     <td className="py-2.5 pr-4 text-gray-400">{u.region}</td>
                     <td className="py-2.5 pr-4">
-                      <Badge color={u.accountType === "full" ? "emerald" : "gray"}>{u.accountType}</Badge>
+                      <select
+                        value={userTier(u)}
+                        onChange={e => setTier(u.id, e.target.value as UserTier)}
+                        className={`text-xs font-medium rounded px-2 py-1 border-0 cursor-pointer focus:outline-none focus:ring-1 focus:ring-amber-400 ${
+                          userTier(u) === "premium" ? "bg-amber-400/20 text-amber-300" :
+                          userTier(u) === "full"    ? "bg-emerald-400/10 text-emerald-400" :
+                                                     "bg-gray-700 text-gray-400"
+                        }`}
+                      >
+                        <option value="guest">guest</option>
+                        <option value="full">full</option>
+                        <option value="premium">premium</option>
+                      </select>
                     </td>
                     <td className="py-2.5 pr-4">
                       {u.coachProfile
                         ? <Badge color={u.coachProfile.isApproved ? "amber" : "gray"}>{u.coachProfile.isApproved ? "coach" : "pending"}</Badge>
                         : <span className="text-gray-600">—</span>}
                     </td>
-                    <td className="py-2.5 pr-4 text-gray-500">{new Date(u.createdAt).toLocaleDateString()}</td>
-                    <td className="py-2.5">
-                      <button
-                        onClick={() => toggleAccountType(u.id, u.accountType)}
-                        className="text-xs text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 rounded-md px-2 py-1 transition-colors"
-                        title="Toggle account type"
-                      >
-                        {u.accountType === "full" ? "→ guest" : "→ full"}
-                      </button>
-                    </td>
+                    <td className="py-2.5 text-gray-500">{new Date(u.createdAt).toLocaleDateString()}</td>
                   </tr>
                 ))}
               </tbody>
