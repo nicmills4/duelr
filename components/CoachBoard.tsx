@@ -61,12 +61,12 @@ function ChampStrip({ champs, max = 8 }: { champs: ChampEntry[]; max?: number })
   const shown    = champs.slice(0, max);
   const overflow = champs.length - max;
   return (
-    <div className="flex items-center gap-1 flex-wrap">
+    <div className="flex items-center gap-1.5 flex-wrap">
       {shown.map((c) => (
-        <Image key={c.id} src={c.imageUrl} alt={c.id} width={24} height={24}
+        <Image key={c.id} src={c.imageUrl} alt={c.id} width={36} height={36}
           className="rounded-md ring-1 ring-dark-600" />
       ))}
-      {overflow > 0 && <span className="text-[10px] text-gray-500">+{overflow}</span>}
+      {overflow > 0 && <span className="text-xs text-gray-500">+{overflow}</span>}
     </div>
   );
 }
@@ -78,39 +78,39 @@ function CoachCard({ coach, onBook }: { coach: CoachData; onBook: () => void }) 
   const avail = AVAILABILITY_SLOTS.filter((s) => coach.availability.includes(s.id));
 
   return (
-    <div className="card space-y-3">
+    <div className="card space-y-5">
       {/* Header */}
       <div className="flex items-start justify-between">
-        <div className="space-y-1">
+        <div className="space-y-1.5">
           <div className="flex items-center gap-2">
-            <Shield className="w-4 h-4 text-gold-400 flex-shrink-0" />
-            <span className="font-bold text-white text-base">{coach.riotId}</span>
+            <Shield className="w-5 h-5 text-gold-400 flex-shrink-0" />
+            <span className="font-bold text-white text-xl">{coach.riotId}</span>
           </div>
-          <span className={`inline-flex text-[10px] font-semibold px-2 py-0.5 rounded-full border ${badge}`}>
+          <span className={`inline-flex text-xs font-semibold px-2.5 py-1 rounded-full border ${badge}`}>
             {coach.verifiedTier.charAt(0) + coach.verifiedTier.slice(1).toLowerCase()} · Verified
           </span>
         </div>
         <div className="text-right">
-          <p className="font-bold text-gold-400 text-lg">{centsToDisplay(coach.hourlyRate)}</p>
+          <p className="font-bold text-gold-400 text-2xl">{centsToDisplay(coach.hourlyRate)}</p>
         </div>
       </div>
 
       {/* Champions */}
       {coach.champions.length > 0 && (
         <div>
-          <p className="text-[10px] text-gray-600 uppercase tracking-wide mb-1">Plays</p>
+          <p className="text-xs text-gray-600 uppercase tracking-wide mb-2">Plays</p>
           <ChampStrip champs={coach.champions} />
         </div>
       )}
       {coach.roles.length > 0 && (
         <div>
-          <p className="text-[10px] text-gray-600 uppercase tracking-wide mb-1">Specializes in</p>
-          <div className="flex flex-wrap gap-1.5">
+          <p className="text-xs text-gray-600 uppercase tracking-wide mb-2">Specializes in</p>
+          <div className="flex flex-wrap gap-2">
             {coach.roles.map((role) => (
               <span key={role}
-                className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-dark-700 text-gray-300 border-dark-600">
+                className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full border bg-dark-700 text-gray-300 border-dark-600">
                 {ROLE_ICON[role] && (
-                  <Image src={ROLE_ICON[role]} alt={role} width={12} height={12} />
+                  <Image src={ROLE_ICON[role]} alt={role} width={16} height={16} />
                 )}
                 {role}
               </span>
@@ -121,11 +121,11 @@ function CoachCard({ coach, onBook }: { coach: CoachData; onBook: () => void }) 
 
       {/* Availability */}
       {avail.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap gap-2">
           {avail.map((s) => (
             <span key={s.id}
-              className="text-[10px] bg-dark-700 border border-dark-600 text-gray-400 rounded-full px-2 py-0.5 flex items-center gap-1">
-              <Clock className="w-2.5 h-2.5" />
+              className="text-xs bg-dark-700 border border-dark-600 text-gray-400 rounded-full px-2.5 py-1 flex items-center gap-1.5">
+              <Clock className="w-3.5 h-3.5" />
               {s.label}
             </span>
           ))}
@@ -134,16 +134,16 @@ function CoachCard({ coach, onBook }: { coach: CoachData; onBook: () => void }) 
 
       {/* Bio */}
       {coach.bio && (
-        <p className="text-xs text-gray-400 italic border-t border-dark-600 pt-2 leading-relaxed">
+        <p className="text-sm text-gray-400 italic border-t border-dark-600 pt-3 leading-relaxed">
           &ldquo;{coach.bio}&rdquo;
         </p>
       )}
 
       <button
         onClick={onBook}
-        className="btn-primary w-full flex items-center justify-center gap-2 text-sm"
+        className="btn-primary w-full flex items-center justify-center gap-2 text-base"
       >
-        <Star className="w-3.5 h-3.5" /> Book a Session
+        <Star className="w-4 h-4" /> Book a Session
       </button>
     </div>
   );
@@ -291,7 +291,7 @@ export default function CoachBoard({ userId, bookedId }: Props) {
           <p className="text-gray-500">No coaches available yet — check back soon.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {coaches.map((coach) => (
             <CoachCard
               key={coach.id}
