@@ -1,10 +1,11 @@
 /**
- * GET /api/cron/auto-report
+ * GET|POST /api/cron/auto-report
  *
  * Polls the Riot Match v5 API for completed custom games between matched players
  * and automatically sets the match outcome based on first blood.
  *
  * Expected call cadence: every 5 minutes (Railway cron or similar).
+ * Accepts both GET and POST — Railway's Bun Function cron template uses POST.
  *
  * Security: requires the Authorization header to equal CRON_SECRET when set.
  *
@@ -144,3 +145,6 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({ ok: true, ...stats });
 }
+
+// Railway's Bun Function cron template sends POST — alias to the same handler
+export { GET as POST };
