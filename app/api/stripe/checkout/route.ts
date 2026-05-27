@@ -29,6 +29,14 @@ export async function POST() {
     });
   }
 
+  const priceId = process.env.STRIPE_PREMIUM_PRICE_ID;
+  if (!priceId) {
+    return NextResponse.json(
+      { error: "Premium subscription is not configured — STRIPE_PREMIUM_PRICE_ID missing." },
+      { status: 503 }
+    );
+  }
+
   const origin = process.env.NEXT_PUBLIC_APP_URL ?? "https://duelr.gg";
 
   const checkoutSession = await getStripe().checkout.sessions.create({
@@ -37,7 +45,7 @@ export async function POST() {
     payment_method_types: ["card"],
     line_items: [
       {
-        price:    process.env.STRIPE_PREMIUM_PRICE_ID!,
+        price:    priceId,
         quantity: 1,
       },
     ],

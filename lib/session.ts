@@ -3,6 +3,9 @@ import { cookies } from "next/headers";
 import { prisma } from "./prisma";
 import { redis } from "./redis";
 
+if (process.env.NODE_ENV === "production" && !process.env.SESSION_SECRET) {
+  throw new Error("SESSION_SECRET env var is required in production — set it in Railway/your host.");
+}
 const SECRET = new TextEncoder().encode(
   process.env.SESSION_SECRET || "fallback-dev-secret-do-not-use-in-prod"
 );
@@ -59,21 +62,40 @@ export async function getSession() {
     }
 
     // ── Postgres fallback ────────────────────────────────────────────────────
+    // Use select (not include) so passwordHash is never fetched from the DB at all.
     const session = await prisma.session.findUnique({
       where: { id: sessionId },
-      include: { user: true },
+      select: {
+        id:        true,
+        userId:    true,
+        expiresAt: true,
+        createdAt: true,
+        user: {
+          select: {
+            id:                  true,
+            riotId:              true,
+            puuid:               true,
+            region:              true,
+            createdAt:           true,
+            updatedAt:           true,
+            accountType:         true,
+            email:               true,
+            emailVerified:       true,
+            isPremium:           true,
+            stripeCustomerId:    true,
+            stripeSubscriptionId: true,
+            // passwordHash intentionally excluded
+          },
+        },
+      },
     });
 
     if (!session || session.expiresAt < new Date()) return null;
 
-    // Strip passwordHash before caching — never store it in Redis
-    const { passwordHash: _pw, ...safeUser } = session.user as typeof session.user & { passwordHash?: string };
-    const safeSession = { ...session, user: safeUser };
-
     // Populate cache for the next 60 s
-    await redis.setex(sessionCacheKey(sessionId), SESSION_CACHE_TTL, JSON.stringify(safeSession));
+    await redis.setex(sessionCacheKey(sessionId), SESSION_CACHE_TTL, JSON.stringify(session));
 
-    return safeSession;
+    return session;
   } catch {
     return null;
   }

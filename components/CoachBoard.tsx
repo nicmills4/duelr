@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import Image from "next/image";
 import {
   Shield, Star, Clock, Loader2, CheckCircle2, X, MessageCircle,
+  ChevronUp, ChevronDown, SlidersHorizontal,
 } from "lucide-react";
 import { AVAILABILITY_SLOTS } from "@/lib/partner-types";
 
@@ -14,6 +15,7 @@ interface ChampEntry { id: string; imageUrl: string }
 interface CoachData {
   id:           string;
   riotId:       string;
+  region:       string;
   verifiedTier: string;
   hourlyRate:   number;
   bio:          string | null;
@@ -38,6 +40,22 @@ const TIER_BADGE: Record<string, string> = {
   CHALLENGER:  "bg-gold-400/10   text-gold-400   border-gold-400/25",
 };
 
+const REGION_LABELS: Record<string, string> = {
+  na1:   "NA",
+  euw1:  "EUW",
+  eune1: "EUNE",
+  kr:    "KR",
+  br1:   "BR",
+  la1:   "LAN",
+  la2:   "LAS",
+  oc1:   "OCE",
+  tr1:   "TR",
+  ru:    "RU",
+  jp1:   "JP",
+};
+
+const ALL_ROLES = ["Top", "Jungle", "Mid", "Bot", "Support"];
+
 const DURATION_OPTIONS = [
   { minutes: 30, label: "30 min" },
   { minutes: 60, label: "1 hour" },
@@ -53,6 +71,10 @@ function centsToDisplay(cents: number) {
 function sessionPrice(hourlyRate: number, minutes: number) {
   const total = Math.round((hourlyRate * minutes) / 60);
   return `$${(total / 100).toFixed(2)}`;
+}
+
+function regionLabel(r: string) {
+  return REGION_LABELS[r] ?? r.toUpperCase();
 }
 
 // ── Champion strip ────────────────────────────────────────────────────────────
@@ -86,9 +108,14 @@ function CoachCard({ coach, onBook }: { coach: CoachData; onBook: () => void }) 
             <Shield className="w-5 h-5 text-gold-400 flex-shrink-0" />
             <span className="font-bold text-white text-xl">{coach.riotId}</span>
           </div>
-          <span className={`inline-flex text-xs font-semibold px-2.5 py-1 rounded-full border ${badge}`}>
-            {coach.verifiedTier.charAt(0) + coach.verifiedTier.slice(1).toLowerCase()} · Verified
-          </span>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={`inline-flex text-xs font-semibold px-2.5 py-1 rounded-full border ${badge}`}>
+              {coach.verifiedTier.charAt(0) + coach.verifiedTier.slice(1).toLowerCase()} · Verified
+            </span>
+            <span className="inline-flex text-xs font-medium px-2.5 py-1 rounded-full border bg-dark-700 text-gray-400 border-dark-600">
+              {regionLabel(coach.region)}
+            </span>
+          </div>
         </div>
         <div className="text-right">
           <p className="font-bold text-gold-400 text-2xl">{centsToDisplay(coach.hourlyRate)}</p>
@@ -102,6 +129,8 @@ function CoachCard({ coach, onBook }: { coach: CoachData; onBook: () => void }) 
           <ChampStrip champs={coach.champions} />
         </div>
       )}
+
+      {/* Roles */}
       {coach.roles.length > 0 && (
         <div>
           <p className="text-xs text-gray-600 uppercase tracking-wide mb-2">Specializes in</p>
@@ -237,6 +266,168 @@ function BookModal({ coach, onClose }: { coach: CoachData; onClose: () => void }
   );
 }
 
+// ── Filter bar ────────────────────────────────────────────────────────────────
+
+type SortPrice = "asc" | "desc" | null;
+
+interface FilterState {
+  champ:  string;
+  role:   string | null;
+  region: string | null;
+  price:  SortPrice;
+}
+
+function FilterBar({
+  coaches,
+  filters,
+  setFilters,
+  resultCount,
+}: {
+  coaches:     CoachData[];
+  filters:     FilterState;
+  setFilters:  (f: FilterState) => void;
+  resultCount: number;
+}) {
+  // Collect unique regions from the currently loaded coaches
+  const regions = useMemo(() => {
+    const seen = new Set<string>();
+    coaches.forEach((c) => seen.add(c.region));
+    return [...seen].sort();
+  }, [coaches]);
+
+  const hasFilter =
+    !!filters.champ || !!filters.role || !!filters.region || !!filters.price;
+
+  function set(partial: Partial<FilterState>) {
+    setFilters({ ...filters, ...partial });
+  }
+
+  function clear() {
+    setFilters({ champ: "", role: null, region: null, price: null });
+  }
+
+  function togglePrice(dir: "asc" | "desc") {
+    set({ price: filters.price === dir ? null : dir });
+  }
+
+  return (
+    <div className="bg-dark-800 border border-dark-600 rounded-xl p-4 space-y-3">
+
+      {/* Row 1 — champion search · region · price sort */}
+      <div className="flex flex-wrap gap-3 items-center">
+
+        {/* Champion text filter */}
+        <div className="relative flex-1 min-w-[160px]">
+          <input
+            type="text"
+            value={filters.champ}
+            onChange={(e) => set({ champ: e.target.value })}
+            placeholder="Filter by champion…"
+            className="w-full bg-dark-700 border border-dark-600 rounded-lg px-3 py-1.5 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-gold-400/50 transition-colors"
+          />
+          {filters.champ && (
+            <button
+              onClick={() => set({ champ: "" })}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-600 hover:text-gray-400 transition-colors"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+
+        {/* Region dropdown — only shown when there are multiple regions */}
+        {regions.length > 1 && (
+          <select
+            value={filters.region ?? ""}
+            onChange={(e) => set({ region: e.target.value || null })}
+            className="bg-dark-700 border border-dark-600 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-gold-400/50 transition-colors cursor-pointer"
+          >
+            <option value="">All Regions</option>
+            {regions.map((r) => (
+              <option key={r} value={r}>{regionLabel(r)}</option>
+            ))}
+          </select>
+        )}
+
+        {/* Price sort toggle */}
+        <div className="flex items-center gap-1 bg-dark-700 border border-dark-600 rounded-lg p-1">
+          <span className="text-xs text-gray-500 px-1.5 select-none">Price</span>
+          <button
+            onClick={() => togglePrice("asc")}
+            title="Cheapest first"
+            className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
+              filters.price === "asc"
+                ? "bg-gold-400/15 text-gold-400 border border-gold-400/30"
+                : "text-gray-500 hover:text-gray-300"
+            }`}
+          >
+            <ChevronUp className="w-3.5 h-3.5" /> Low
+          </button>
+          <button
+            onClick={() => togglePrice("desc")}
+            title="Most expensive first"
+            className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
+              filters.price === "desc"
+                ? "bg-gold-400/15 text-gold-400 border border-gold-400/30"
+                : "text-gray-500 hover:text-gray-300"
+            }`}
+          >
+            <ChevronDown className="w-3.5 h-3.5" /> High
+          </button>
+        </div>
+      </div>
+
+      {/* Row 2 — role pills */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-xs text-gray-600 uppercase tracking-wide mr-1 select-none">Role</span>
+        <button
+          onClick={() => set({ role: null })}
+          className={`text-xs px-3 py-1 rounded-full border transition-all ${
+            !filters.role
+              ? "bg-gold-400/15 text-gold-400 border-gold-400/30 font-semibold"
+              : "bg-dark-700 text-gray-500 border-dark-600 hover:text-gray-300"
+          }`}
+        >
+          All
+        </button>
+        {ALL_ROLES.map((role) => (
+          <button
+            key={role}
+            onClick={() => set({ role: filters.role === role ? null : role })}
+            className={`flex items-center gap-1.5 text-xs px-3 py-1 rounded-full border transition-all ${
+              filters.role === role
+                ? "bg-gold-400/15 text-gold-400 border-gold-400/30 font-semibold"
+                : "bg-dark-700 text-gray-500 border-dark-600 hover:text-gray-300"
+            }`}
+          >
+            {ROLE_ICON[role] && (
+              <Image src={ROLE_ICON[role]} alt={role} width={14} height={14} />
+            )}
+            {role}
+          </button>
+        ))}
+      </div>
+
+      {/* Footer — result count + clear */}
+      {hasFilter && (
+        <div className="flex items-center justify-between pt-1 border-t border-dark-600/50">
+          <span className="text-xs text-gray-500">
+            {resultCount === 0
+              ? "No coaches match"
+              : `${resultCount} coach${resultCount !== 1 ? "es" : ""} found`}
+          </span>
+          <button
+            onClick={clear}
+            className="text-xs text-gray-500 hover:text-gray-300 flex items-center gap-1 transition-colors"
+          >
+            <X className="w-3 h-3" /> Clear filters
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main board ────────────────────────────────────────────────────────────────
 
 interface BookedSession {
@@ -252,10 +443,13 @@ interface Props {
 }
 
 export default function CoachBoard({ userId, bookedSessionId }: Props) {
-  const [coaches,    setCoaches]    = useState<CoachData[]>([]);
-  const [loading,    setLoading]    = useState(true);
-  const [bookTarget, setBookTarget] = useState<CoachData | null>(null);
+  const [coaches,      setCoaches]      = useState<CoachData[]>([]);
+  const [loading,      setLoading]      = useState(true);
+  const [bookTarget,   setBookTarget]   = useState<CoachData | null>(null);
   const [bookedSession, setBookedSession] = useState<BookedSession | null>(null);
+  const [filters,      setFilters]      = useState<FilterState>({
+    champ: "", role: null, region: null, price: null,
+  });
 
   const load = useCallback(() => {
     fetch("/api/coaching/coaches")
@@ -267,7 +461,7 @@ export default function CoachBoard({ userId, bookedSessionId }: Props) {
 
   useEffect(() => { load(); }, [load]);
 
-  // Fetch session details (including coach Discord) after a successful payment
+  // Fetch session details (including coach Discord) after a confirmed payment
   useEffect(() => {
     if (!bookedSessionId) return;
     fetch(`/api/coaching/session/${bookedSessionId}`)
@@ -276,8 +470,41 @@ export default function CoachBoard({ userId, bookedSessionId }: Props) {
       .catch(() => {});
   }, [bookedSessionId]);
 
+  // ── Filtered + sorted list ──────────────────────────────────────────────────
+  const visible = useMemo(() => {
+    let list = [...coaches];
+
+    // Champion — case-insensitive substring match against champion IDs
+    if (filters.champ.trim()) {
+      const q = filters.champ.trim().toLowerCase();
+      list = list.filter((c) =>
+        c.champions.some((ch) => ch.id.toLowerCase().includes(q))
+      );
+    }
+
+    // Role — exact match
+    if (filters.role) {
+      const r = filters.role;
+      list = list.filter((c) => c.roles.includes(r));
+    }
+
+    // Region — exact match
+    if (filters.region) {
+      const reg = filters.region;
+      list = list.filter((c) => c.region === reg);
+    }
+
+    // Price sort
+    if (filters.price === "asc")  list.sort((a, b) => a.hourlyRate - b.hourlyRate);
+    if (filters.price === "desc") list.sort((a, b) => b.hourlyRate - a.hourlyRate);
+
+    return list;
+  }, [coaches, filters]);
+
   return (
     <div className="space-y-6">
+
+      {/* Post-payment success banner */}
       {bookedSessionId && (
         <div className="card border border-emerald-500/20 bg-emerald-500/5 space-y-3">
           <div className="flex items-center gap-2 text-emerald-400 font-semibold">
@@ -307,9 +534,7 @@ export default function CoachBoard({ userId, bookedSessionId }: Props) {
               )}
             </>
           ) : (
-            <p className="text-sm text-gray-400">
-              Loading session details…
-            </p>
+            <p className="text-sm text-gray-400">Loading session details…</p>
           )}
         </div>
       )}
@@ -332,18 +557,36 @@ export default function CoachBoard({ userId, bookedSessionId }: Props) {
           <p className="text-gray-500">No coaches available yet — check back soon.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {coaches.map((coach) => (
-            <CoachCard
-              key={coach.id}
-              coach={coach}
-              onBook={() => userId ? setBookTarget(coach) : (window.location.href = "/")}
-            />
-          ))}
-        </div>
+        <>
+          <FilterBar
+            coaches={coaches}
+            filters={filters}
+            setFilters={setFilters}
+            resultCount={visible.length}
+          />
+
+          {visible.length === 0 ? (
+            <div className="text-center py-12 space-y-2">
+              <SlidersHorizontal className="w-8 h-8 text-gray-700 mx-auto" />
+              <p className="text-gray-500 text-sm">No coaches match your filters.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {visible.map((coach) => (
+                <CoachCard
+                  key={coach.id}
+                  coach={coach}
+                  onBook={() => userId ? setBookTarget(coach) : (window.location.href = "/")}
+                />
+              ))}
+            </div>
+          )}
+        </>
       )}
 
-      {bookTarget && <BookModal coach={bookTarget} onClose={() => setBookTarget(null)} />}
+      {bookTarget && (
+        <BookModal coach={bookTarget} onClose={() => setBookTarget(null)} />
+      )}
     </div>
   );
 }

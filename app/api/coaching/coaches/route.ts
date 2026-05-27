@@ -26,6 +26,7 @@ export async function GET() {
       return {
         id:           c.id,
         riotId:       c.user.riotId,
+        region:       c.user.region,
         verifiedTier: c.verifiedTier,
         hourlyRate:   c.hourlyRate,
         bio:          c.bio,

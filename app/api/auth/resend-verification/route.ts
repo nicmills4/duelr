@@ -2,11 +2,11 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { createVerificationToken } from "@/lib/verify-token";
 import { sendVerificationEmail } from "@/lib/email";
+import { redis } from "@/lib/redis";
 
 export const dynamic = "force-dynamic";
 
-// Simple in-memory rate limit: one resend per userId per 60 s
-const recentResends = new Map<string, number>();
+const RESEND_COOLDOWN_SECONDS = 60;
 
 export async function POST() {
   const session = await getSession();
@@ -21,17 +21,18 @@ export async function POST() {
     return NextResponse.json({ error: "Email already verified" }, { status: 400 });
   }
 
-  // Rate limit: 1 resend per minute
-  const last = recentResends.get(userId) ?? 0;
-  const elapsed = Date.now() - last;
-  if (elapsed < 60_000) {
-    const wait = Math.ceil((60_000 - elapsed) / 1000);
+  // Redis-backed rate limit: survives across multiple server instances.
+  // SET NX EX returns null if the key already exists (i.e. cooldown active).
+  const rateLimitKey = `resend_verification:${userId}`;
+  const acquired = await redis.set(rateLimitKey, "1", "EX", RESEND_COOLDOWN_SECONDS, "NX");
+  if (!acquired) {
+    const ttl = await redis.ttl(rateLimitKey);
+    const wait = ttl > 0 ? ttl : RESEND_COOLDOWN_SECONDS;
     return NextResponse.json(
       { error: `Please wait ${wait}s before requesting another email` },
       { status: 429 }
     );
   }
-  recentResends.set(userId, Date.now());
 
   const token = await createVerificationToken(userId);
   const sent  = await sendVerificationEmail(user.email, token);

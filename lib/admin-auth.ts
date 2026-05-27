@@ -7,6 +7,9 @@
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 
+if (process.env.NODE_ENV === "production" && !process.env.SESSION_SECRET) {
+  throw new Error("SESSION_SECRET env var is required in production — set it in Railway/your host.");
+}
 const SECRET      = new TextEncoder().encode(
   process.env.SESSION_SECRET || "fallback-dev-secret-do-not-use-in-prod"
 );

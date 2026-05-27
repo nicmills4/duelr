@@ -25,9 +25,10 @@ export async function POST(
     return NextResponse.json({ error: "Not a participant in this match" }, { status: 403 });
   }
 
-  // Don't allow re-reporting once outcome is confirmed
-  if (match.outcome && match.outcome !== "DISPUTED") {
-    return NextResponse.json({ error: "Outcome already confirmed" }, { status: 409 });
+  // Don't allow re-reporting once any outcome is set (including DISPUTED).
+  // Players cannot change their report after the fact — disputes must go through support.
+  if (match.outcome) {
+    return NextResponse.json({ error: "Outcome already recorded" }, { status: 409 });
   }
 
   const update = isPlayerA ? { playerAReport: result } : { playerBReport: result };
