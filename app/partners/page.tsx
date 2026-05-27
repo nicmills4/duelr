@@ -2,6 +2,7 @@ import { getSession } from "@/lib/session";
 import PartnerBoard from "@/components/PartnerBoard";
 import AccountGate from "@/components/AccountGate";
 import { Users2 } from "lucide-react";
+import { PARTNERS_REQUIRE_PREMIUM } from "@/lib/feature-flags";
 
 export const metadata = {
   title: "Practice Partners · Duelr",
@@ -15,7 +16,8 @@ export default async function PartnersPage() {
     : session.user.accountType === "full"
     ? "full"
     : "guest";
-  const isPremium   = session?.user.isPremium ?? false;
+  // When the premium gate is disabled, treat all full accounts as premium for this feature
+  const isPremium   = !PARTNERS_REQUIRE_PREMIUM || (session?.user.isPremium ?? false);
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-10">

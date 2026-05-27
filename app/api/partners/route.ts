@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { ELO_BRACKETS } from "@/lib/constants";
 import { AVAILABILITY_SLOTS } from "@/lib/partner-types";
 import type { PartnerPostPublic, ChampEntry } from "@/lib/partner-types";
+import { PARTNERS_REQUIRE_PREMIUM } from "@/lib/feature-flags";
 
 export const dynamic = "force-dynamic";
 
@@ -79,7 +80,7 @@ export async function POST(req: NextRequest) {
   if (!session) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   if (session.user.accountType !== "full")
     return NextResponse.json({ error: "Full account required" }, { status: 403 });
-  if (!session.user.isPremium)
+  if (PARTNERS_REQUIRE_PREMIUM && !session.user.isPremium)
     return NextResponse.json({ error: "Premium subscription required" }, { status: 403 });
 
   const body = await req.json().catch(() => null);
@@ -138,7 +139,7 @@ export async function DELETE() {
   if (!session) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   if (session.user.accountType !== "full")
     return NextResponse.json({ error: "Full account required" }, { status: 403 });
-  if (!session.user.isPremium)
+  if (PARTNERS_REQUIRE_PREMIUM && !session.user.isPremium)
     return NextResponse.json({ error: "Premium subscription required" }, { status: 403 });
 
   await prisma.partnerPost.deleteMany({ where: { userId: session.userId } });

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Crown, Zap, Users2, X, CheckCircle2, Loader2 } from "lucide-react";
+import { Crown, Zap, X, CheckCircle2, Loader2 } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
@@ -37,7 +37,7 @@ function PremiumContent() {
           <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0" />
           <div>
             <p className="font-semibold text-emerald-400">You&apos;re now Premium!</p>
-            <p className="text-sm text-emerald-300/70">Practice Partners and all premium features are unlocked.</p>
+            <p className="text-sm text-emerald-300/70">All premium features are unlocked.</p>
           </div>
         </div>
       )}
@@ -65,11 +65,6 @@ function PremiumContent() {
       {/* Feature cards */}
       <div className="grid grid-cols-1 gap-4">
         {[
-          {
-            icon: <Users2 className="w-5 h-5 text-gold-400" />,
-            title: "Practice Partners Board",
-            desc: "Post your champion pool and availability. Find players who grind the same matchups — no more queuing blind every time.",
-          },
           {
             icon: <X className="w-5 h-5 text-gold-400" />,
             title: "Zero Ads",
