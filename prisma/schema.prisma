@@ -88,9 +88,10 @@ model CoachProfile {
   hourlyRate   Int      // in cents, e.g. 3000 = $30/hr
   bio           String?  // max 500 chars
   availability  String   // JSON string[] — time slot IDs
-  discordHandle String?  // shown to student after confirmed payment (e.g. "Faker#0001")
-  contactEmail  String?  // receives booking notification emails (separate from login email)
-  isActive      Boolean  @default(true)
+  discordHandle   String?  // shown to student after confirmed payment (e.g. "Faker#0001")
+  contactEmail    String?  // receives booking notification emails (separate from login email)
+  stripeAccountId String?  // Stripe Connect account ID (acct_...) — set after coach completes OAuth
+  isActive        Boolean  @default(true)
   // Manually approved by the site owner via scripts/manage-coaches.ts
   isApproved   Boolean  @default(false)
   createdAt    DateTime @default(now())

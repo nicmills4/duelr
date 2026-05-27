@@ -4,7 +4,29 @@ import { useState, useEffect, useCallback } from "react";
 import {
   Shield, LogOut, Plus, Check, X, ChevronDown, ChevronUp,
   Search, RefreshCw, Trash2, ToggleLeft, ToggleRight, Users, UserCheck,
+  Link2, Copy,
 } from "lucide-react";
+
+// ─── Clipboard helper ────────────────────────────────────────────────────────
+
+function copyText(text: string) {
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).catch(() => fallbackCopy(text));
+  } else {
+    fallbackCopy(text);
+  }
+}
+
+function fallbackCopy(text: string) {
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  ta.style.cssText = "position:fixed;top:0;left:0;opacity:0;pointer-events:none";
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  document.execCommand("copy");
+  document.body.removeChild(ta);
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -18,10 +40,11 @@ interface CoachProfile {
   hourlyRate:    number;  // cents
   bio:           string | null;
   availability:  string;  // JSON
-  discordHandle: string | null;
-  contactEmail:  string | null;
-  isActive:      boolean;
-  isApproved:    boolean;
+  discordHandle:   string | null;
+  contactEmail:    string | null;
+  stripeAccountId: string | null;
+  isActive:        boolean;
+  isApproved:      boolean;
   createdAt:     string;
   user: {
     id:          string;
@@ -111,8 +134,10 @@ function AddCoachModal({ onClose, onSaved }: { onClose: () => void; onSaved: () 
     contactEmail:     "",
     isApproved:       true,
   });
-  const [loading, setLoading] = useState(false);
-  const [error,   setError]   = useState("");
+  const [loading,    setLoading]    = useState(false);
+  const [error,      setError]      = useState("");
+  const [connectUrl, setConnectUrl] = useState<string | null>(null);
+  const [copied,     setCopied]     = useState(false);
 
   const set = (k: string, v: string | boolean) =>
     setForm(f => ({ ...f, [k]: v }));
@@ -127,9 +152,59 @@ function AddCoachModal({ onClose, onSaved }: { onClose: () => void; onSaved: () 
       headers: { "Content-Type": "application/json" },
       body:    JSON.stringify({ ...form, champions }),
     });
+    if (!res.ok) {
+      setLoading(false);
+      const d = await res.json().catch(() => ({}));
+      setError(d.error || `Server error ${res.status}`);
+      return;
+    }
+    const data = await res.json();
+    onSaved();
+    // Fetch the Stripe Connect URL for the newly created coach
+    const urlRes = await fetch(`/api/admin/coaches/${data.profile.id}/stripe-connect`);
     setLoading(false);
-    if (res.ok) { onSaved(); onClose(); }
-    else { const d = await res.json().catch(() => ({})); setError(d.error || `Server error ${res.status}`); }
+    if (urlRes.ok) {
+      const urlData = await urlRes.json();
+      setConnectUrl(urlData.connectUrl);
+    } else {
+      onClose();
+    }
+  }
+
+  // ── Success screen — show after coach is created ───────────────────────────
+  if (connectUrl) {
+    return (
+      <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+        <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-lg p-6 space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-emerald-400/20 flex items-center justify-center flex-shrink-0">
+              <Check className="w-4 h-4 text-emerald-400" />
+            </div>
+            <div>
+              <h2 className="font-bold">Coach Created</h2>
+              <p className="text-xs text-gray-400">Send this Stripe Connect link to the coach so they can authorize payouts.</p>
+            </div>
+          </div>
+          <div className="bg-gray-800 border border-gray-700 rounded-lg p-3">
+            <p className="text-xs text-gray-500 mb-1.5">Stripe Connect URL</p>
+            <p className="text-xs font-mono text-gray-300 break-all leading-relaxed">{connectUrl}</p>
+          </div>
+          <button
+            onClick={() => {
+              copyText(connectUrl);
+              setCopied(true);
+              setTimeout(() => setCopied(false), 2000);
+            }}
+            className="w-full flex items-center justify-center gap-2 bg-violet-600 hover:bg-violet-500 text-white font-semibold rounded-lg py-2 text-sm transition-colors"
+          >
+            {copied ? <><Check className="w-4 h-4" /> Copied!</> : <><Copy className="w-4 h-4" /> Copy URL</>}
+          </button>
+          <button onClick={onClose} className="w-full bg-gray-800 hover:bg-gray-700 rounded-lg py-2 text-sm transition-colors">
+            Done
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -349,6 +424,7 @@ function CoachesTab() {
   const [showAdd,     setShowAdd]     = useState(false);
   const [editCoach,   setEditCoach]   = useState<CoachProfile | null>(null);
   const [expanded,    setExpanded]    = useState<string | null>(null);
+  const [copiedId,    setCopiedId]    = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -379,6 +455,15 @@ function CoachesTab() {
       body:    JSON.stringify({ [field]: value }),
     });
     await load();
+  }
+
+  async function copyConnectUrl(id: string) {
+    const res = await fetch(`/api/admin/coaches/${id}/stripe-connect`);
+    if (!res.ok) return;
+    const { connectUrl } = await res.json();
+    copyText(connectUrl);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
   }
 
   async function deleteCoach(id: string, riotId: string) {
@@ -424,6 +509,7 @@ function CoachesTab() {
                   <div className="flex gap-1.5 flex-shrink-0">
                     <span className={`w-2 h-2 rounded-full ${c.isApproved ? "bg-emerald-400" : "bg-gray-600"}`} title={c.isApproved ? "Approved" : "Pending"} />
                     <span className={`w-2 h-2 rounded-full ${c.isActive ? "bg-blue-400" : "bg-gray-600"}`} title={c.isActive ? "Active" : "Inactive"} />
+                    <span className={`w-2 h-2 rounded-full ${c.stripeAccountId ? "bg-violet-400" : "bg-gray-600"}`} title={c.stripeAccountId ? "Stripe linked" : "Stripe not linked"} />
                   </div>
                   {/* Info */}
                   <div className="flex-1 min-w-0">
@@ -454,6 +540,13 @@ function CoachesTab() {
                       title="Edit">
                       ✏️
                     </button>
+                    <button
+                      onClick={() => !c.stripeAccountId && copyConnectUrl(c.id)}
+                      className={`p-1.5 rounded-lg transition-colors ${c.stripeAccountId ? "text-violet-400 cursor-default" : "text-gray-500 hover:bg-violet-400/10 hover:text-violet-400"}`}
+                      title={c.stripeAccountId ? `Stripe linked: ${c.stripeAccountId}` : "Copy Stripe Connect URL"}
+                    >
+                      {copiedId === c.id ? <Check className="w-4 h-4 text-emerald-400" /> : <Link2 className="w-4 h-4" />}
+                    </button>
                     <button onClick={() => deleteCoach(c.id, c.user.riotId)}
                       className="p-1.5 rounded-lg text-red-500 hover:bg-red-500/10 transition-colors"
                       title="Delete">
@@ -475,8 +568,9 @@ function CoachesTab() {
                     <Field label="Rate"       value={`$${(c.hourlyRate / 100).toFixed(2)}/hr`} />
                     <Field label="Champions"     value={JSON.parse(c.champions || "[]").join(", ") || "—"} />
                     <Field label="Specializes in" value={JSON.parse(c.roles || "[]").join(", ") || "—"} />
-                    <Field label="Discord"       value={c.discordHandle ?? "—"} />
-                    <Field label="Contact email" value={c.contactEmail  ?? "—"} />
+                    <Field label="Discord"       value={c.discordHandle  ?? "—"} />
+                    <Field label="Contact email" value={c.contactEmail   ?? "—"} />
+                    <Field label="Stripe account" value={c.stripeAccountId ?? "Not linked"} />
                     {c.bio && <div className="col-span-2"><Field label="Bio" value={c.bio} /></div>}
                     <Field label="Created"    value={new Date(c.createdAt).toLocaleDateString()} />
                   </div>

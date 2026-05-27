@@ -72,6 +72,19 @@ export async function POST(req: NextRequest) {
           },
         });
 
+        // Transfer payout to coach's connected Stripe account
+        const coachPayout = booking.totalCharged - booking.platformFee;
+        if (booking.coachProfile.stripeAccountId && coachPayout > 0) {
+          await getStripe().transfers.create({
+            amount:      coachPayout,
+            currency:    "usd",
+            destination: booking.coachProfile.stripeAccountId,
+            metadata:    { coachingSessionId: booking.id },
+          }).catch((err) => console.error("[webhook] payout transfer failed:", err));
+        } else if (!booking.coachProfile.stripeAccountId) {
+          console.warn("[webhook] coach has no stripeAccountId — payout skipped for session", booking.id);
+        }
+
         // Notify the coach — contactEmail on profile takes priority over login email
         const notifyEmail =
           booking.coachProfile.contactEmail ??
