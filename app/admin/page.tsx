@@ -13,7 +13,8 @@ interface CoachProfile {
   displayCode:  string;
   verifiedTier: string;
   champions:    string;  // JSON
-  specialties:  string;  // JSON
+  specialties:  string;  // JSON (legacy — kept for DB compat)
+  roles:        string;  // JSON
   hourlyRate:   number;  // cents
   bio:          string | null;
   availability: string;  // JSON
@@ -213,7 +214,7 @@ function EditCoachModal({ coach, onClose, onSaved }: {
   onSaved: () => void;
 }) {
   const champions = JSON.parse(coach.champions || "[]") as string[];
-  const initRoles = JSON.parse((coach as CoachProfile & { roles?: string }).roles || "[]") as string[];
+  const initRoles = JSON.parse(coach.roles       || "[]") as string[];
 
   const [form, setForm] = useState({
     verifiedTier:      coach.verifiedTier,
@@ -316,16 +317,29 @@ function EditCoachModal({ coach, onClose, onSaved }: {
 function CoachesTab() {
   const [coaches,     setCoaches]     = useState<CoachProfile[]>([]);
   const [loading,     setLoading]     = useState(true);
+  const [loadErr,     setLoadErr]     = useState("");
   const [showAdd,     setShowAdd]     = useState(false);
   const [editCoach,   setEditCoach]   = useState<CoachProfile | null>(null);
   const [expanded,    setExpanded]    = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
-    const res = await fetch("/api/admin/coaches");
-    const d   = await res.json();
-    setCoaches(d.coaches ?? []);
-    setLoading(false);
+    setLoadErr("");
+    try {
+      const res = await fetch("/api/admin/coaches");
+      if (!res.ok) {
+        const text = await res.text();
+        setLoadErr(`HTTP ${res.status} — ${text.slice(0, 200)}`);
+        setLoading(false);
+        return;
+      }
+      const d = await res.json();
+      setCoaches(d.coaches ?? []);
+    } catch (err) {
+      setLoadErr(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -362,6 +376,11 @@ function CoachesTab() {
 
       {loading ? (
         <p className="text-gray-500 text-sm">Loading…</p>
+      ) : loadErr ? (
+        <div className="bg-red-900/20 border border-red-700/40 rounded-xl p-4 text-sm text-red-400 space-y-1">
+          <p className="font-semibold">Failed to load coaches</p>
+          <p className="font-mono text-xs break-all">{loadErr}</p>
+        </div>
       ) : coaches.length === 0 ? (
         <p className="text-gray-500 text-sm">No coaches yet.</p>
       ) : (
@@ -427,7 +446,7 @@ function CoachesTab() {
                     <Field label="Account"    value={c.user.accountType} />
                     <Field label="Rate"       value={`$${(c.hourlyRate / 100).toFixed(2)}/hr`} />
                     <Field label="Champions"     value={JSON.parse(c.champions || "[]").join(", ") || "—"} />
-                    <Field label="Specializes in" value={JSON.parse((c as CoachProfile & { roles?: string }).roles || "[]").join(", ") || "—"} />
+                    <Field label="Specializes in" value={JSON.parse(c.roles || "[]").join(", ") || "—"} />
                     {c.bio && <div className="col-span-2"><Field label="Bio" value={c.bio} /></div>}
                     <Field label="Created"    value={new Date(c.createdAt).toLocaleDateString()} />
                   </div>

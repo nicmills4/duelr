@@ -24,12 +24,16 @@ export async function GET() {
   if (!await verifyAdminSession())
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const coaches = await prisma.coachProfile.findMany({
-    include: { user: { select: { id: true, riotId: true, region: true, email: true, accountType: true } } },
-    orderBy: { createdAt: "desc" },
-  });
-
-  return NextResponse.json({ coaches });
+  try {
+    const coaches = await prisma.coachProfile.findMany({
+      include: { user: { select: { id: true, riotId: true, region: true, email: true, accountType: true } } },
+      orderBy: { createdAt: "desc" },
+    });
+    return NextResponse.json({ coaches });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
 }
 
 // ── POST /api/admin/coaches ────────────────────────────────────────────────────
