@@ -15,6 +15,7 @@ export default async function PartnersPage() {
     : session.user.accountType === "full"
     ? "full"
     : "guest";
+  const isPremium   = session?.user.isPremium ?? false;
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-10">
@@ -36,6 +37,7 @@ export default async function PartnersPage() {
         <PartnerBoard
           userId={session?.userId ?? null}
           riotId={session?.user.riotId ?? null}
+          isPremium={isPremium}
         />
       </AccountGate>
     </div>

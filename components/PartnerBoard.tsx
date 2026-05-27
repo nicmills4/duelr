@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import {
   Plus, X, Pencil, Trash2, CheckCircle2, Clock,
-  Moon, Sun, Sunset, Coffee, Calendar, Loader2, UserPlus,
+  Moon, Sun, Sunset, Coffee, Calendar, Loader2, UserPlus, Crown,
 } from "lucide-react";
 import { ELO_BRACKETS, BRACKET_ORDER } from "@/lib/constants";
 import type { EloBracket } from "@/lib/constants";
@@ -434,11 +434,12 @@ function PostForm({
 // ── Main board ────────────────────────────────────────────────────────────────
 
 interface Props {
-  userId:  string | null;
-  riotId:  string | null;
+  userId:    string | null;
+  riotId:    string | null;
+  isPremium: boolean;
 }
 
-export default function PartnerBoard({ userId, riotId }: Props) {
+export default function PartnerBoard({ userId, riotId, isPremium }: Props) {
   const [posts,      setPosts]      = useState<(PartnerPostPublic & { isOwn?: boolean })[]>([]);
   const [champions,  setChampions]  = useState<Champion[]>([]);
   const [loading,    setLoading]    = useState(true);
@@ -512,36 +513,49 @@ export default function PartnerBoard({ userId, riotId }: Props) {
     <div className="space-y-6">
       {/* CTA bar */}
       {userId && !formOpen && (
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-3">
           <p className="text-sm text-gray-500">
             {riotId && (
               <>Posting as <span className="text-gold-400 font-medium">{riotId}</span></>
             )}
           </p>
-          {myPost ? (
-            <div className="flex items-center gap-2">
+
+          {isPremium ? (
+            /* ── Premium: show post / edit / delete controls ── */
+            myPost ? (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => { setEditTarget(myPost); setFormOpen(true); }}
+                  className="btn-secondary flex items-center gap-1.5 text-sm"
+                >
+                  <Pencil className="w-3.5 h-3.5" /> Edit My Post
+                </button>
+                <button
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  className="flex items-center gap-1.5 text-sm text-red-400 hover:text-red-300 border border-red-500/20 hover:border-red-500/40 bg-red-500/5 hover:bg-red-500/10 rounded-lg px-3 py-2 transition-colors"
+                >
+                  {deleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                  Remove
+                </button>
+              </div>
+            ) : (
               <button
-                onClick={() => { setEditTarget(myPost); setFormOpen(true); }}
-                className="btn-secondary flex items-center gap-1.5 text-sm"
+                onClick={() => { setEditTarget(null); setFormOpen(true); }}
+                className="btn-primary flex items-center gap-2"
               >
-                <Pencil className="w-3.5 h-3.5" /> Edit My Post
+                <UserPlus className="w-4 h-4" /> Post Your LFG
               </button>
-              <button
-                onClick={handleDelete}
-                disabled={deleting}
-                className="flex items-center gap-1.5 text-sm text-red-400 hover:text-red-300 border border-red-500/20 hover:border-red-500/40 bg-red-500/5 hover:bg-red-500/10 rounded-lg px-3 py-2 transition-colors"
-              >
-                {deleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-                Remove
-              </button>
-            </div>
+            )
           ) : (
-            <button
-              onClick={() => { setEditTarget(null); setFormOpen(true); }}
-              className="btn-primary flex items-center gap-2"
+            /* ── Non-premium: upgrade prompt ── */
+            <a
+              href="/premium"
+              className="flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-sm text-amber-300 hover:bg-amber-500/20 hover:border-amber-500/50 transition-colors"
             >
-              <UserPlus className="w-4 h-4" /> Post Your LFG
-            </button>
+              <Crown className="w-4 h-4 text-amber-400" />
+              Upgrade to Premium to post your LFG
+            </a>
           )}
         </div>
       )}
@@ -576,7 +590,7 @@ export default function PartnerBoard({ userId, riotId }: Props) {
         <div className="text-center py-16 space-y-3">
           <Clock className="w-10 h-10 text-gray-700 mx-auto" />
           <p className="text-gray-500">No partner posts yet.</p>
-          {userId && (
+          {userId && isPremium && (
             <p className="text-sm text-gray-600">
               Be the first —{" "}
               <button
@@ -586,6 +600,14 @@ export default function PartnerBoard({ userId, riotId }: Props) {
                 post your LFG
               </button>
               .
+            </p>
+          )}
+          {userId && !isPremium && (
+            <p className="text-sm text-gray-600">
+              <a href="/premium" className="text-amber-400 hover:underline">
+                Upgrade to Premium
+              </a>
+              {" "}to post your LFG.
             </p>
           )}
         </div>

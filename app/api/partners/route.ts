@@ -79,6 +79,8 @@ export async function POST(req: NextRequest) {
   if (!session) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   if (session.user.accountType !== "full")
     return NextResponse.json({ error: "Full account required" }, { status: 403 });
+  if (!session.user.isPremium)
+    return NextResponse.json({ error: "Premium subscription required" }, { status: 403 });
 
   const body = await req.json().catch(() => null);
   if (!body) return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
@@ -136,6 +138,8 @@ export async function DELETE() {
   if (!session) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   if (session.user.accountType !== "full")
     return NextResponse.json({ error: "Full account required" }, { status: 403 });
+  if (!session.user.isPremium)
+    return NextResponse.json({ error: "Premium subscription required" }, { status: 403 });
 
   await prisma.partnerPost.deleteMany({ where: { userId: session.userId } });
   return NextResponse.json({ ok: true });
