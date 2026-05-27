@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
         quantity: 1,
       },
     ],
-    success_url: `${origin}/coaching?booked=1`,
+    success_url: `${origin}/coaching?booked=${booking.id}`,
     cancel_url:  `${origin}/coaching?canceled=1`,
     metadata:    { coachingSessionId: booking.id },
   });

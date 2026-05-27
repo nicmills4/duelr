@@ -14,8 +14,8 @@ export default async function CoachingPage({
   searchParams: Promise<{ booked?: string; canceled?: string }>;
 }) {
   const [session, sp] = await Promise.all([getSession(), searchParams]);
-  const booked      = !!sp.booked;
-  const canceled    = sp.canceled === "1";
+  const bookedSessionId = sp.booked && sp.booked !== "1" ? sp.booked : null;
+  const canceled        = sp.canceled === "1";
   const accountType = !session
     ? "none"
     : session.user.accountType === "full"
@@ -79,7 +79,7 @@ export default async function CoachingPage({
       <AccountGate accountType={accountType as "none" | "guest" | "full"} featureName="Coaching">
         <CoachBoard
           userId={session?.userId ?? null}
-          bookedId={booked}
+          bookedSessionId={bookedSessionId}
         />
       </AccountGate>
     </div>

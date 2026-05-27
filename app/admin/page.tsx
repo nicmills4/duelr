@@ -9,18 +9,20 @@ import {
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface CoachProfile {
-  id:           string;
-  displayCode:  string;
-  verifiedTier: string;
-  champions:    string;  // JSON
-  specialties:  string;  // JSON (legacy — kept for DB compat)
-  roles:        string;  // JSON
-  hourlyRate:   number;  // cents
-  bio:          string | null;
-  availability: string;  // JSON
-  isActive:     boolean;
-  isApproved:   boolean;
-  createdAt:    string;
+  id:            string;
+  displayCode:   string;
+  verifiedTier:  string;
+  champions:     string;  // JSON
+  specialties:   string;  // JSON (legacy — kept for DB compat)
+  roles:         string;  // JSON
+  hourlyRate:    number;  // cents
+  bio:           string | null;
+  availability:  string;  // JSON
+  discordHandle: string | null;
+  contactEmail:  string | null;
+  isActive:      boolean;
+  isApproved:    boolean;
+  createdAt:     string;
   user: {
     id:          string;
     riotId:      string;
@@ -105,6 +107,8 @@ function AddCoachModal({ onClose, onSaved }: { onClose: () => void; onSaved: () 
     bio:              "",
     championsRaw:     "",   // comma-separated champion IDs
     roles:            [] as string[],
+    discordHandle:    "",
+    contactEmail:     "",
     isApproved:       true,
   });
   const [loading, setLoading] = useState(false);
@@ -176,6 +180,16 @@ function AddCoachModal({ onClose, onSaved }: { onClose: () => void; onSaved: () 
               })}
             </div>
           </Row>
+          <Row label="Discord Handle">
+            <input className={inp} value={form.discordHandle}
+              onChange={e => set("discordHandle", e.target.value)}
+              placeholder="username#0000 or @username" />
+          </Row>
+          <Row label="Contact Email (for booking notifications)">
+            <input className={inp} type="email" value={form.contactEmail}
+              onChange={e => set("contactEmail", e.target.value)}
+              placeholder="coach@example.com" />
+          </Row>
           <Row label="Bio">
             <textarea className={`${inp} resize-none h-20`} value={form.bio}
               onChange={e => set("bio", e.target.value)} maxLength={500} />
@@ -219,9 +233,11 @@ function EditCoachModal({ coach, onClose, onSaved }: {
   const [form, setForm] = useState({
     verifiedTier:      coach.verifiedTier,
     hourlyRateDollars: (coach.hourlyRate / 100).toFixed(2),
-    bio:               coach.bio || "",
+    bio:               coach.bio           || "",
     championsRaw:      champions.join(", "),
     roles:             initRoles,
+    discordHandle:     coach.discordHandle || "",
+    contactEmail:      coach.contactEmail  || "",
     isApproved:        coach.isApproved,
     isActive:          coach.isActive,
   });
@@ -243,6 +259,8 @@ function EditCoachModal({ coach, onClose, onSaved }: {
         bio:               form.bio,
         champions:         form.championsRaw.split(",").map(s => s.trim()).filter(Boolean),
         roles:             form.roles,
+        discordHandle:     form.discordHandle,
+        contactEmail:      form.contactEmail,
         isApproved:        form.isApproved,
         isActive:          form.isActive,
       }),
@@ -288,6 +306,16 @@ function EditCoachModal({ coach, onClose, onSaved }: {
                 );
               })}
             </div>
+          </Row>
+          <Row label="Discord Handle">
+            <input className={inp} value={form.discordHandle}
+              onChange={e => set("discordHandle", e.target.value)}
+              placeholder="username#0000 or @username" />
+          </Row>
+          <Row label="Contact Email (for booking notifications)">
+            <input className={inp} type="email" value={form.contactEmail}
+              onChange={e => set("contactEmail", e.target.value)}
+              placeholder="coach@example.com" />
           </Row>
           <Row label="Bio">
             <textarea className={`${inp} resize-none h-20`} value={form.bio}
@@ -447,6 +475,8 @@ function CoachesTab() {
                     <Field label="Rate"       value={`$${(c.hourlyRate / 100).toFixed(2)}/hr`} />
                     <Field label="Champions"     value={JSON.parse(c.champions || "[]").join(", ") || "—"} />
                     <Field label="Specializes in" value={JSON.parse(c.roles || "[]").join(", ") || "—"} />
+                    <Field label="Discord"       value={c.discordHandle ?? "—"} />
+                    <Field label="Contact email" value={c.contactEmail  ?? "—"} />
                     {c.bio && <div className="col-span-2"><Field label="Bio" value={c.bio} /></div>}
                     <Field label="Created"    value={new Date(c.createdAt).toLocaleDateString()} />
                   </div>

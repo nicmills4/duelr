@@ -16,13 +16,15 @@ export async function PATCH(
 
   // Build update payload with explicit types to satisfy Prisma's generated client
   type CoachUpdate = {
-    isApproved?:   boolean;
-    isActive?:     boolean;
-    verifiedTier?: string;
-    bio?:          string | null;
-    hourlyRate?:   number;
-    champions?:    string;
-    roles?:        string;
+    isApproved?:    boolean;
+    isActive?:      boolean;
+    verifiedTier?:  string;
+    bio?:           string | null;
+    hourlyRate?:    number;
+    champions?:     string;
+    roles?:         string;
+    discordHandle?: string | null;
+    contactEmail?:  string | null;
   };
   const updates: CoachUpdate = {};
 
@@ -36,6 +38,10 @@ export async function PATCH(
     updates.champions = JSON.stringify(body.champions);
   if (Array.isArray(body.roles))
     updates.roles = JSON.stringify(body.roles);
+  if (typeof body.discordHandle === "string")
+    updates.discordHandle = body.discordHandle || null;
+  if (typeof body.contactEmail  === "string")
+    updates.contactEmail  = body.contactEmail  || null;
 
   // Nothing to update — treat as not found
   if (Object.keys(updates).length === 0)

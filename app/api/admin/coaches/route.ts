@@ -46,7 +46,8 @@ export async function POST(req: NextRequest) {
 
   const {
     riotId, region, verifiedTier, champions, roles,
-    hourlyRateDollars, bio, availability, isApproved = true,
+    hourlyRateDollars, bio, availability, discordHandle, contactEmail,
+    isApproved = true,
   } = body;
 
   if (!riotId || !region || !verifiedTier || !hourlyRateDollars)
@@ -75,25 +76,29 @@ export async function POST(req: NextRequest) {
   const profile = await prisma.coachProfile.upsert({
     where:  { userId: user.id },
     create: {
-      userId:       user.id,
+      userId:        user.id,
       displayCode,
       verifiedTier,
-      champions:    JSON.stringify(Array.isArray(champions) ? champions : []),
-      specialties:  "[]",
-      roles:        JSON.stringify(Array.isArray(roles) ? roles : []),
+      champions:     JSON.stringify(Array.isArray(champions) ? champions : []),
+      specialties:   "[]",
+      roles:         JSON.stringify(Array.isArray(roles) ? roles : []),
       hourlyRate,
-      bio:          bio || null,
-      availability: JSON.stringify(Array.isArray(availability) ? availability : []),
+      bio:           bio           || null,
+      availability:  JSON.stringify(Array.isArray(availability) ? availability : []),
+      discordHandle: discordHandle || null,
+      contactEmail:  contactEmail  || null,
       isApproved,
-      isActive:     true,
+      isActive:      true,
     },
     update: {
       verifiedTier,
-      champions:    JSON.stringify(Array.isArray(champions) ? champions : []),
-      roles:        JSON.stringify(Array.isArray(roles) ? roles : []),
+      champions:     JSON.stringify(Array.isArray(champions) ? champions : []),
+      roles:         JSON.stringify(Array.isArray(roles) ? roles : []),
       hourlyRate,
-      bio:          bio || null,
-      availability: JSON.stringify(Array.isArray(availability) ? availability : []),
+      bio:           bio           || null,
+      availability:  JSON.stringify(Array.isArray(availability) ? availability : []),
+      discordHandle: discordHandle || null,
+      contactEmail:  contactEmail  || null,
       isApproved,
     },
   });

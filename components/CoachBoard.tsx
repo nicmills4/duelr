@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import {
-  Shield, Star, Clock, Loader2, CheckCircle2, X,
+  Shield, Star, Clock, Loader2, CheckCircle2, X, MessageCircle,
 } from "lucide-react";
 import { AVAILABILITY_SLOTS } from "@/lib/partner-types";
 
@@ -239,15 +239,23 @@ function BookModal({ coach, onClose }: { coach: CoachData; onClose: () => void }
 
 // ── Main board ────────────────────────────────────────────────────────────────
 
-interface Props {
-  userId:   string | null;
-  bookedId: boolean;
+interface BookedSession {
+  coachRiotId:     string;
+  coachDiscord:    string | null;
+  durationMinutes: number;
+  totalCharged:    number;
 }
 
-export default function CoachBoard({ userId, bookedId }: Props) {
+interface Props {
+  userId:          string | null;
+  bookedSessionId: string | null;
+}
+
+export default function CoachBoard({ userId, bookedSessionId }: Props) {
   const [coaches,    setCoaches]    = useState<CoachData[]>([]);
   const [loading,    setLoading]    = useState(true);
   const [bookTarget, setBookTarget] = useState<CoachData | null>(null);
+  const [bookedSession, setBookedSession] = useState<BookedSession | null>(null);
 
   const load = useCallback(() => {
     fetch("/api/coaching/coaches")
@@ -259,17 +267,50 @@ export default function CoachBoard({ userId, bookedId }: Props) {
 
   useEffect(() => { load(); }, [load]);
 
+  // Fetch session details (including coach Discord) after a successful payment
+  useEffect(() => {
+    if (!bookedSessionId) return;
+    fetch(`/api/coaching/session/${bookedSessionId}`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => { if (d?.session) setBookedSession(d.session); })
+      .catch(() => {});
+  }, [bookedSessionId]);
+
   return (
     <div className="space-y-6">
-      {bookedId && (
-        <div className="card border border-emerald-500/20 bg-emerald-500/5 space-y-1">
+      {bookedSessionId && (
+        <div className="card border border-emerald-500/20 bg-emerald-500/5 space-y-3">
           <div className="flex items-center gap-2 text-emerald-400 font-semibold">
             <CheckCircle2 className="w-5 h-5" />
             Session booked!
           </div>
-          <p className="text-sm text-gray-300">
-            Payment confirmed. Add your coach as a friend in the League client to arrange your session.
-          </p>
+          {bookedSession ? (
+            <>
+              <p className="text-sm text-gray-300">
+                Payment confirmed for your{" "}
+                <span className="text-white font-medium">{bookedSession.durationMinutes}-minute</span>{" "}
+                session with{" "}
+                <span className="text-white font-medium">{bookedSession.coachRiotId}</span>.
+              </p>
+              {bookedSession.coachDiscord ? (
+                <div className="flex items-center gap-3 bg-dark-700 border border-dark-600 rounded-xl px-4 py-3">
+                  <MessageCircle className="w-5 h-5 text-indigo-400 flex-shrink-0" />
+                  <div>
+                    <p className="text-xs text-gray-500 mb-0.5">Coach&apos;s Discord</p>
+                    <p className="text-white font-semibold text-sm">{bookedSession.coachDiscord}</p>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-gray-400">
+                  Add your coach as a friend in the League client to arrange your session.
+                </p>
+              )}
+            </>
+          ) : (
+            <p className="text-sm text-gray-400">
+              Loading session details…
+            </p>
+          )}
         </div>
       )}
 

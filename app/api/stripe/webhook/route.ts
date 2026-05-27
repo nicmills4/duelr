@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getStripe } from "@/lib/stripe";
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
+import { sendCoachBookingEmail } from "@/lib/email";
 import type Stripe from "stripe";
 
 export const dynamic = "force-dynamic";
@@ -60,13 +61,31 @@ export async function POST(req: NextRequest) {
 
       // ── Coaching session purchase ─────────────────────────────────────────
       if (cs.mode === "payment" && cs.metadata?.coachingSessionId) {
-        await prisma.coachingSession.update({
+        const booking = await prisma.coachingSession.update({
           where: { id: cs.metadata.coachingSessionId },
-          data:  {
-            status:          "confirmed",
-            stripeSessionId: cs.id,
+          data:  { status: "confirmed", stripeSessionId: cs.id },
+          include: {
+            coachProfile: {
+              include: { user: { select: { riotId: true, email: true } } },
+            },
+            student: { select: { riotId: true } },
           },
         });
+
+        // Notify the coach — contactEmail on profile takes priority over login email
+        const notifyEmail =
+          booking.coachProfile.contactEmail ??
+          booking.coachProfile.user.email;
+
+        if (notifyEmail) {
+          await sendCoachBookingEmail({
+            toEmail:         notifyEmail,
+            studentRiotId:   booking.student.riotId,
+            durationMinutes: booking.durationMinutes,
+            totalCharged:    booking.totalCharged,
+            platformFee:     booking.platformFee,
+          }).catch((err) => console.error("[webhook] coach email failed:", err));
+        }
       }
       break;
     }
