@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
   if (!body) return NextResponse.json({ error: "Invalid body" }, { status: 400 });
 
   const {
-    riotId, region, verifiedTier, champions, specialties,
+    riotId, region, verifiedTier, champions, roles,
     hourlyRateDollars, bio, availability, isApproved = true,
   } = body;
 
@@ -75,7 +75,8 @@ export async function POST(req: NextRequest) {
       displayCode,
       verifiedTier,
       champions:    JSON.stringify(Array.isArray(champions) ? champions : []),
-      specialties:  JSON.stringify(Array.isArray(specialties) ? specialties : []),
+      specialties:  "[]",
+      roles:        JSON.stringify(Array.isArray(roles) ? roles : []),
       hourlyRate,
       bio:          bio || null,
       availability: JSON.stringify(Array.isArray(availability) ? availability : []),
@@ -85,7 +86,7 @@ export async function POST(req: NextRequest) {
     update: {
       verifiedTier,
       champions:    JSON.stringify(Array.isArray(champions) ? champions : []),
-      specialties:  JSON.stringify(Array.isArray(specialties) ? specialties : []),
+      roles:        JSON.stringify(Array.isArray(roles) ? roles : []),
       hourlyRate,
       bio:          bio || null,
       availability: JSON.stringify(Array.isArray(availability) ? availability : []),

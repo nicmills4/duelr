@@ -22,7 +22,7 @@ export async function PATCH(
     bio?:          string | null;
     hourlyRate?:   number;
     champions?:    string;
-    specialties?:  string;
+    roles?:        string;
   };
   const updates: CoachUpdate = {};
 
@@ -33,9 +33,9 @@ export async function PATCH(
   if (typeof body.hourlyRateDollars === "number")
     updates.hourlyRate = Math.round(body.hourlyRateDollars * 100);
   if (Array.isArray(body.champions))
-    updates.champions  = JSON.stringify(body.champions);
-  if (Array.isArray(body.specialties))
-    updates.specialties = JSON.stringify(body.specialties);
+    updates.champions = JSON.stringify(body.champions);
+  if (Array.isArray(body.roles))
+    updates.roles = JSON.stringify(body.roles);
 
   // Nothing to update — treat as not found
   if (Object.keys(updates).length === 0)

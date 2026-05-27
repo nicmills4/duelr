@@ -103,7 +103,7 @@ function AddCoachModal({ onClose, onSaved }: { onClose: () => void; onSaved: () 
     hourlyRateDollars:"30",
     bio:              "",
     championsRaw:     "",   // comma-separated champion IDs
-    specialtiesRaw:   "",
+    roles:            [] as string[],
     isApproved:       true,
   });
   const [loading, setLoading] = useState(false);
@@ -116,12 +116,11 @@ function AddCoachModal({ onClose, onSaved }: { onClose: () => void; onSaved: () 
     e.preventDefault();
     setError("");
     setLoading(true);
-    const champions  = form.championsRaw.split(",").map(s => s.trim()).filter(Boolean);
-    const specialties = form.specialtiesRaw.split(",").map(s => s.trim()).filter(Boolean);
+    const champions = form.championsRaw.split(",").map(s => s.trim()).filter(Boolean);
     const res = await fetch("/api/admin/coaches", {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({ ...form, champions, specialties }),
+      body:    JSON.stringify({ ...form, champions }),
     });
     setLoading(false);
     if (res.ok) { onSaved(); onClose(); }
@@ -162,10 +161,19 @@ function AddCoachModal({ onClose, onSaved }: { onClose: () => void; onSaved: () 
               onChange={e => set("championsRaw", e.target.value)}
               placeholder="Zed,Yasuo,Akali" />
           </Row>
-          <Row label="Specialties (comma-separated)">
-            <input className={inp} value={form.specialtiesRaw}
-              onChange={e => set("specialtiesRaw", e.target.value)}
-              placeholder="Early game,Laning phase" />
+          <Row label="Specializes in (roles)">
+            <div className="flex flex-wrap gap-2 pt-1">
+              {["Top","Jungle","Mid","Bot","Support"].map(role => {
+                const checked = form.roles.includes(role);
+                return (
+                  <label key={role} className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border cursor-pointer transition-colors ${checked ? "border-amber-400 bg-amber-400/10 text-amber-300" : "border-gray-700 text-gray-400 hover:border-gray-500"}`}>
+                    <input type="checkbox" className="sr-only" checked={checked}
+                      onChange={() => setForm(f => ({ ...f, roles: checked ? f.roles.filter(r => r !== role) : [...f.roles, role] }))} />
+                    {role}
+                  </label>
+                );
+              })}
+            </div>
           </Row>
           <Row label="Bio">
             <textarea className={`${inp} resize-none h-20`} value={form.bio}
@@ -204,17 +212,17 @@ function EditCoachModal({ coach, onClose, onSaved }: {
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const champions  = JSON.parse(coach.champions  || "[]") as string[];
-  const specialties = JSON.parse(coach.specialties || "[]") as string[];
+  const champions = JSON.parse(coach.champions || "[]") as string[];
+  const initRoles = JSON.parse((coach as CoachProfile & { roles?: string }).roles || "[]") as string[];
 
   const [form, setForm] = useState({
-    verifiedTier:     coach.verifiedTier,
+    verifiedTier:      coach.verifiedTier,
     hourlyRateDollars: (coach.hourlyRate / 100).toFixed(2),
-    bio:              coach.bio || "",
-    championsRaw:     champions.join(", "),
-    specialtiesRaw:   specialties.join(", "),
-    isApproved:       coach.isApproved,
-    isActive:         coach.isActive,
+    bio:               coach.bio || "",
+    championsRaw:      champions.join(", "),
+    roles:             initRoles,
+    isApproved:        coach.isApproved,
+    isActive:          coach.isActive,
   });
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState("");
@@ -229,13 +237,13 @@ function EditCoachModal({ coach, onClose, onSaved }: {
       method:  "PATCH",
       headers: { "Content-Type": "application/json" },
       body:    JSON.stringify({
-        verifiedTier:     form.verifiedTier,
+        verifiedTier:      form.verifiedTier,
         hourlyRateDollars: parseFloat(form.hourlyRateDollars),
-        bio:              form.bio,
-        champions:        form.championsRaw.split(",").map(s => s.trim()).filter(Boolean),
-        specialties:      form.specialtiesRaw.split(",").map(s => s.trim()).filter(Boolean),
-        isApproved:       form.isApproved,
-        isActive:         form.isActive,
+        bio:               form.bio,
+        champions:         form.championsRaw.split(",").map(s => s.trim()).filter(Boolean),
+        roles:             form.roles,
+        isApproved:        form.isApproved,
+        isActive:          form.isActive,
       }),
     });
     setLoading(false);
@@ -266,8 +274,19 @@ function EditCoachModal({ coach, onClose, onSaved }: {
           <Row label="Champions (comma-separated)">
             <input className={inp} value={form.championsRaw} onChange={e => set("championsRaw", e.target.value)} />
           </Row>
-          <Row label="Specialties (comma-separated)">
-            <input className={inp} value={form.specialtiesRaw} onChange={e => set("specialtiesRaw", e.target.value)} />
+          <Row label="Specializes in (roles)">
+            <div className="flex flex-wrap gap-2 pt-1">
+              {["Top","Jungle","Mid","Bot","Support"].map(role => {
+                const checked = form.roles.includes(role);
+                return (
+                  <label key={role} className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border cursor-pointer transition-colors ${checked ? "border-amber-400 bg-amber-400/10 text-amber-300" : "border-gray-700 text-gray-400 hover:border-gray-500"}`}>
+                    <input type="checkbox" className="sr-only" checked={checked}
+                      onChange={() => setForm(f => ({ ...f, roles: checked ? f.roles.filter(r => r !== role) : [...f.roles, role] }))} />
+                    {role}
+                  </label>
+                );
+              })}
+            </div>
           </Row>
           <Row label="Bio">
             <textarea className={`${inp} resize-none h-20`} value={form.bio}
@@ -407,8 +426,8 @@ function CoachesTab() {
                     <Field label="Region"     value={c.user.region} />
                     <Field label="Account"    value={c.user.accountType} />
                     <Field label="Rate"       value={`$${(c.hourlyRate / 100).toFixed(2)}/hr`} />
-                    <Field label="Champions"  value={JSON.parse(c.champions || "[]").join(", ") || "—"} />
-                    <Field label="Specialties" value={JSON.parse(c.specialties || "[]").join(", ") || "—"} />
+                    <Field label="Champions"     value={JSON.parse(c.champions || "[]").join(", ") || "—"} />
+                    <Field label="Specializes in" value={JSON.parse((c as CoachProfile & { roles?: string }).roles || "[]").join(", ") || "—"} />
                     {c.bio && <div className="col-span-2"><Field label="Bio" value={c.bio} /></div>}
                     <Field label="Created"    value={new Date(c.createdAt).toLocaleDateString()} />
                   </div>

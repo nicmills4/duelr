@@ -19,9 +19,9 @@ export async function GET() {
     const imgBase  = `https://ddragon.leagueoflegends.com/cdn/${version}/img/champion`;
 
     const results = coaches.map((c) => {
-      const champIds: string[] = JSON.parse(c.champions);
-      const specIds:  string[] = JSON.parse(c.specialties);
-      const avail:    string[] = JSON.parse(c.availability);
+      const champIds: string[] = JSON.parse(c.champions  || "[]");
+      const roles:    string[] = JSON.parse(c.roles       || "[]");
+      const avail:    string[] = JSON.parse(c.availability || "[]");
 
       return {
         id:           c.id,
@@ -31,7 +31,7 @@ export async function GET() {
         bio:          c.bio,
         availability: avail,
         champions:    champIds.map((id) => ({ id, imageUrl: `${imgBase}/${id}.png` })),
-        specialties:  specIds.map((id) => ({ id, imageUrl: `${imgBase}/${id}.png` })),
+        roles,
       };
     });
 

@@ -83,7 +83,8 @@ model CoachProfile {
   displayCode  String   @unique
   verifiedTier String   // "MASTER" | "GRANDMASTER" | "CHALLENGER"
   champions    String   // JSON string[] — champion pool
-  specialties  String   // JSON string[] — matchups / roles they coach
+  specialties  String   // JSON string[] — legacy, kept for compatibility
+  roles        String   @default("[]") // JSON string[] — "Top"|"Jungle"|"Mid"|"Bot"|"Support"
   hourlyRate   Int      // in cents, e.g. 3000 = $30/hr
   bio          String?  // max 500 chars
   availability String   // JSON string[] — time slot IDs
