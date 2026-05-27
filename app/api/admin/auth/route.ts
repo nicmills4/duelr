@@ -7,7 +7,7 @@ export async function POST(req: NextRequest) {
   const adminPassword = process.env.ADMIN_PASSWORD;
 
   if (!adminPassword) {
-    return NextResponse.json({ error: "ADMIN_PASSWORD not configured" }, { status: 500 });
+    return new NextResponse(null, { status: 404 });
   }
   if (!password) {
     return NextResponse.json({ error: "Incorrect password" }, { status: 401 });
