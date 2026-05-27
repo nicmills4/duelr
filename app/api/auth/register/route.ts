@@ -35,42 +35,54 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Riot account not found — check your Riot ID and region" }, { status: 404 });
 
     const normalizedRiotId = `${account.gameName}#${account.tagLine}`;
+    const normalizedEmail  = email.toLowerCase();
 
-    // ── Check if email already in use by a different puuid ────────────────────
-    const existingEmail = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
-    if (existingEmail && existingEmail.puuid !== account.puuid) {
+    // ── Find existing record: puuid first, riotId as fallback for legacy guests ─
+    // (Older guest records may have a stale/missing puuid but the correct riotId.)
+    const [byPuuid, existingEmail] = await Promise.all([
+      prisma.user.findUnique({ where: { puuid: account.puuid } }),
+      prisma.user.findUnique({ where: { email: normalizedEmail } }),
+    ]);
+    const byRiotId = !byPuuid
+      ? await prisma.user.findUnique({ where: { riotId: normalizedRiotId } })
+      : null;
+    const existing = byPuuid ?? byRiotId;
+
+    // ── Check email uniqueness ─────────────────────────────────────────────────
+    if (existingEmail && existingEmail.id !== existing?.id) {
       return NextResponse.json({ error: "Email already in use" }, { status: 409 });
     }
 
-    const passwordHash = await hashPassword(password);
+    const passwordHash    = await hashPassword(password);
+    const emailVerified   = existing?.email === normalizedEmail
+      ? (existing.emailVerified ?? false)
+      : false;
 
-    // ── Upsert user — upgrade guest → full if they already exist ──────────────
-    const normalizedEmail = email.toLowerCase();
-    const isNewEmail = !existingEmail || existingEmail.emailVerified === false;
-
-    const user = await prisma.user.upsert({
-      where: { puuid: account.puuid },
-      update: {
-        riotId:        normalizedRiotId,
-        region,
-        email:         normalizedEmail,
-        passwordHash,
-        accountType:   "full",
-        // Reset verification if they're changing their email
-        emailVerified: existingEmail?.email === normalizedEmail
-          ? (existingEmail.emailVerified ?? false)
-          : false,
-      },
-      create: {
-        puuid:         account.puuid,
-        riotId:        normalizedRiotId,
-        region,
-        email:         normalizedEmail,
-        passwordHash,
-        accountType:   "full",
-        emailVerified: false,
-      },
-    });
+    // ── Create or upgrade the user record ─────────────────────────────────────
+    const user = existing
+      ? await prisma.user.update({
+          where: { id: existing.id },
+          data: {
+            puuid:         account.puuid,   // Repair stale puuid on legacy records
+            riotId:        normalizedRiotId,
+            region,
+            email:         normalizedEmail,
+            passwordHash,
+            accountType:   "full",
+            emailVerified,
+          },
+        })
+      : await prisma.user.create({
+          data: {
+            puuid:         account.puuid,
+            riotId:        normalizedRiotId,
+            region,
+            email:         normalizedEmail,
+            passwordHash,
+            accountType:   "full",
+            emailVerified: false,
+          },
+        });
 
     await createSession(user.id);
 
