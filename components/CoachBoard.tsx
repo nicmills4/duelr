@@ -24,14 +24,6 @@ interface CoachData {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const ROLE_BADGE: Record<string, string> = {
-  Top:     "bg-rose-900/40     text-rose-300     border-rose-700/40",
-  Jungle:  "bg-emerald-900/40  text-emerald-300  border-emerald-700/40",
-  Mid:     "bg-blue-900/40     text-blue-300     border-blue-700/40",
-  Bot:     "bg-violet-900/40   text-violet-300   border-violet-700/40",
-  Support: "bg-amber-900/40    text-amber-300    border-amber-700/40",
-};
-
 const ROLE_ICON: Record<string, string> = {
   Top:     "/top.png",
   Jungle:  "/jungle.png",
@@ -116,9 +108,9 @@ function CoachCard({ coach, onBook }: { coach: CoachData; onBook: () => void }) 
           <div className="flex flex-wrap gap-1.5">
             {coach.roles.map((role) => (
               <span key={role}
-                className={`flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${ROLE_BADGE[role] ?? "bg-dark-700 text-gray-400 border-dark-600"}`}>
+                className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-dark-700 text-gray-300 border-dark-600">
                 {ROLE_ICON[role] && (
-                  <Image src={ROLE_ICON[role]} alt={role} width={12} height={12} className="opacity-90" />
+                  <Image src={ROLE_ICON[role]} alt={role} width={12} height={12} />
                 )}
                 {role}
               </span>
