@@ -259,10 +259,15 @@ function LoginEmailForm() {
         {loading ? "Logging in..." : "Log In"}
       </button>
 
-      <p className="text-xs text-gray-500 text-center">
-        Don&apos;t have an account?{" "}
-        <a href="/?tab=signup" className="text-gold-400 hover:underline">Create one for free</a>
-      </p>
+      <div className="flex items-center justify-between text-xs text-gray-500">
+        <a href="/reset-password" className="text-amber-400 hover:underline">
+          Forgot password?
+        </a>
+        <span>
+          No account?{" "}
+          <a href="/?tab=signup" className="text-gold-400 hover:underline">Create one for free</a>
+        </span>
+      </div>
     </form>
   );
 }

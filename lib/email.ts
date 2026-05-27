@@ -185,6 +185,81 @@ export async function sendCoachBookingEmail(opts: {
   }
 }
 
+// ── Password reset ────────────────────────────────────────────────────────────
+
+function passwordResetEmailHtml(resetUrl: string): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#0f0f13;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#0f0f13;padding:40px 16px;">
+    <tr><td align="center">
+      <table width="480" cellpadding="0" cellspacing="0" style="background:#1a1a24;border-radius:16px;border:1px solid #2a2a3a;overflow:hidden;">
+        <tr>
+          <td style="padding:28px 32px 24px;border-bottom:1px solid #2a2a3a;">
+            <span style="font-size:26px;font-weight:900;letter-spacing:1px;">
+              <span style="color:#fbbf24;">Duel</span><span style="color:#fff;">r</span>
+            </span>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:32px;">
+            <h1 style="margin:0 0 12px;color:#fff;font-size:20px;font-weight:700;">Reset your password</h1>
+            <p style="margin:0 0 28px;color:#9ca3af;font-size:14px;line-height:1.7;">
+              We received a request to reset your Duelr password. Click the button below to
+              choose a new one — this link expires in <strong style="color:#e5e7eb;">1 hour</strong>.
+            </p>
+            <a href="${resetUrl}"
+               style="display:block;background:#fbbf24;color:#0f0f13;text-decoration:none;
+                      text-align:center;padding:14px 24px;border-radius:10px;
+                      font-weight:800;font-size:15px;letter-spacing:0.3px;">
+              Reset Password
+            </a>
+            <p style="margin:24px 0 0;color:#4b5563;font-size:12px;text-align:center;line-height:1.6;">
+              Or copy this link into your browser:<br>
+              <span style="color:#6b7280;word-break:break-all;">${resetUrl}</span>
+            </p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:20px 32px;border-top:1px solid #2a2a3a;">
+            <p style="margin:0;color:#4b5563;font-size:11px;text-align:center;">
+              If you didn&apos;t request a password reset, you can safely ignore this email.
+              Your password will not change.
+            </p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
+export async function sendPasswordResetEmail(
+  toEmail: string,
+  token:   string,
+): Promise<boolean> {
+  const resend = getResend();
+  if (!resend) return false;
+
+  const resetUrl = `${APP_URL}/reset-password?token=${token}`;
+
+  try {
+    const { error } = await resend.emails.send({
+      from:    FROM,
+      to:      toEmail,
+      subject: "Reset your Duelr password",
+      html:    passwordResetEmailHtml(resetUrl),
+    });
+    if (error) { console.error("[email] reset send error:", error); return false; }
+    return true;
+  } catch (err) {
+    console.error("[email] reset unexpected error:", err);
+    return false;
+  }
+}
+
 /**
  * Sends a verification email with a signed token link.
  * Returns true on success, false if Resend is not configured or the send fails.
