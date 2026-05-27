@@ -496,19 +496,26 @@ function CoachesTab() {
 // ─── Users Tab ────────────────────────────────────────────────────────────────
 
 function UsersTab() {
-  const [users,   setUsers]   = useState<AdminUser[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [query,   setQuery]   = useState("");
+  const [users,     setUsers]     = useState<AdminUser[]>([]);
+  const [loading,   setLoading]   = useState(true);
+  const [query,     setQuery]     = useState("");
+  const [page,      setPage]      = useState(1);
+  const [total,     setTotal]     = useState(0);
+  const [pageCount, setPageCount] = useState(1);
 
-  const load = useCallback(async (q = "") => {
+  const load = useCallback(async (q: string, p: number) => {
     setLoading(true);
-    const res = await fetch(`/api/admin/users?q=${encodeURIComponent(q)}`);
-    const d   = await res.json();
+    const res = await fetch(
+      `/api/admin/users?q=${encodeURIComponent(q)}&page=${p}`
+    );
+    const d = await res.json();
     setUsers(d.users ?? []);
+    setTotal(d.total ?? 0);
+    setPageCount(d.pageCount ?? 1);
     setLoading(false);
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load("", 1); }, [load]);
 
   async function toggleAccountType(userId: string, current: string) {
     const next = current === "full" ? "guest" : "full";
@@ -518,12 +525,18 @@ function UsersTab() {
       headers: { "Content-Type": "application/json" },
       body:    JSON.stringify({ userId, accountType: next }),
     });
-    load(query);
+    load(query, page);
   }
 
   function search(e: React.FormEvent) {
     e.preventDefault();
-    load(query);
+    setPage(1);
+    load(query, 1);
+  }
+
+  function goToPage(p: number) {
+    setPage(p);
+    load(query, p);
   }
 
   return (
@@ -531,7 +544,7 @@ function UsersTab() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h2 className="text-lg font-bold flex items-center gap-2">
           <Users className="w-5 h-5 text-amber-400" /> Users
-          <span className="text-gray-500 font-normal text-sm">({users.length})</span>
+          <span className="text-gray-500 font-normal text-sm">({total})</span>
         </h2>
         <form onSubmit={search} className="flex gap-2">
           <div className="relative">
@@ -544,7 +557,9 @@ function UsersTab() {
             />
           </div>
           <button type="submit" className="bg-gray-700 hover:bg-gray-600 rounded-lg px-3 py-1.5 text-sm transition-colors">Search</button>
-          <button type="button" onClick={() => { setQuery(""); load(""); }} className={iconBtn}><RefreshCw className="w-4 h-4" /></button>
+          <button type="button" onClick={() => { setQuery(""); setPage(1); load("", 1); }} className={iconBtn}>
+            <RefreshCw className="w-4 h-4" />
+          </button>
         </form>
       </div>
 
@@ -553,48 +568,75 @@ function UsersTab() {
       ) : users.length === 0 ? (
         <p className="text-gray-500 text-sm">No users found.</p>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs text-gray-500 border-b border-gray-800">
-                <th className="pb-2 pr-4 font-medium">Riot ID</th>
-                <th className="pb-2 pr-4 font-medium">Email</th>
-                <th className="pb-2 pr-4 font-medium">Region</th>
-                <th className="pb-2 pr-4 font-medium">Account</th>
-                <th className="pb-2 pr-4 font-medium">Coach</th>
-                <th className="pb-2 pr-4 font-medium">Joined</th>
-                <th className="pb-2 font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-800/50">
-              {users.map(u => (
-                <tr key={u.id} className="hover:bg-gray-900/50">
-                  <td className="py-2.5 pr-4 font-medium">{u.riotId}</td>
-                  <td className="py-2.5 pr-4 text-gray-400">{u.email ?? "—"}</td>
-                  <td className="py-2.5 pr-4 text-gray-400">{u.region}</td>
-                  <td className="py-2.5 pr-4">
-                    <Badge color={u.accountType === "full" ? "emerald" : "gray"}>{u.accountType}</Badge>
-                  </td>
-                  <td className="py-2.5 pr-4">
-                    {u.coachProfile
-                      ? <Badge color={u.coachProfile.isApproved ? "amber" : "gray"}>{u.coachProfile.isApproved ? "coach" : "pending"}</Badge>
-                      : <span className="text-gray-600">—</span>}
-                  </td>
-                  <td className="py-2.5 pr-4 text-gray-500">{new Date(u.createdAt).toLocaleDateString()}</td>
-                  <td className="py-2.5">
-                    <button
-                      onClick={() => toggleAccountType(u.id, u.accountType)}
-                      className="text-xs text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 rounded-md px-2 py-1 transition-colors"
-                      title="Toggle account type"
-                    >
-                      {u.accountType === "full" ? "→ guest" : "→ full"}
-                    </button>
-                  </td>
+        <>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs text-gray-500 border-b border-gray-800">
+                  <th className="pb-2 pr-4 font-medium">Riot ID</th>
+                  <th className="pb-2 pr-4 font-medium">Email</th>
+                  <th className="pb-2 pr-4 font-medium">Region</th>
+                  <th className="pb-2 pr-4 font-medium">Account</th>
+                  <th className="pb-2 pr-4 font-medium">Coach</th>
+                  <th className="pb-2 pr-4 font-medium">Joined</th>
+                  <th className="pb-2 font-medium">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-gray-800/50">
+                {users.map(u => (
+                  <tr key={u.id} className="hover:bg-gray-900/50">
+                    <td className="py-2.5 pr-4 font-medium">{u.riotId}</td>
+                    <td className="py-2.5 pr-4 text-gray-400">{u.email ?? "—"}</td>
+                    <td className="py-2.5 pr-4 text-gray-400">{u.region}</td>
+                    <td className="py-2.5 pr-4">
+                      <Badge color={u.accountType === "full" ? "emerald" : "gray"}>{u.accountType}</Badge>
+                    </td>
+                    <td className="py-2.5 pr-4">
+                      {u.coachProfile
+                        ? <Badge color={u.coachProfile.isApproved ? "amber" : "gray"}>{u.coachProfile.isApproved ? "coach" : "pending"}</Badge>
+                        : <span className="text-gray-600">—</span>}
+                    </td>
+                    <td className="py-2.5 pr-4 text-gray-500">{new Date(u.createdAt).toLocaleDateString()}</td>
+                    <td className="py-2.5">
+                      <button
+                        onClick={() => toggleAccountType(u.id, u.accountType)}
+                        className="text-xs text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 rounded-md px-2 py-1 transition-colors"
+                        title="Toggle account type"
+                      >
+                        {u.accountType === "full" ? "→ guest" : "→ full"}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination */}
+          {pageCount > 1 && (
+            <div className="flex items-center justify-between pt-2 text-sm">
+              <span className="text-gray-500">
+                Page {page} of {pageCount} &middot; {total} users
+              </span>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => goToPage(page - 1)}
+                  disabled={page <= 1}
+                  className="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                >
+                  ← Prev
+                </button>
+                <button
+                  onClick={() => goToPage(page + 1)}
+                  disabled={page >= pageCount}
+                  className="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                >
+                  Next →
+                </button>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

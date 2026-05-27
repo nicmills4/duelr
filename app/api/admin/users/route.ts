@@ -4,36 +4,52 @@ import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
-// ── GET /api/admin/users ───────────────────────────────────────────────────────
+const PAGE_SIZE = 50;
+
+// ── GET /api/admin/users?q=&page= ─────────────────────────────────────────────
 export async function GET(req: NextRequest) {
   if (!await verifyAdminSession())
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const search = new URL(req.url).searchParams.get("q") ?? "";
+  const params = new URL(req.url).searchParams;
+  const search = params.get("q") ?? "";
+  const page   = Math.max(1, parseInt(params.get("page") ?? "1", 10));
 
-  const users = await prisma.user.findMany({
-    where: search
-      ? {
-          OR: [
-            { riotId:      { contains: search, mode: "insensitive" } },
-            { email:       { contains: search, mode: "insensitive" } },
-          ],
-        }
-      : undefined,
-    select: {
-      id:          true,
-      riotId:      true,
-      region:      true,
-      email:       true,
-      accountType: true,
-      createdAt:   true,
-      coachProfile: { select: { id: true, isApproved: true, isActive: true } },
-    },
-    orderBy: { createdAt: "desc" },
-    take:    100,
+  const where = search
+    ? {
+        OR: [
+          { riotId: { contains: search, mode: "insensitive" as const } },
+          { email:  { contains: search, mode: "insensitive" as const } },
+        ],
+      }
+    : undefined;
+
+  const [users, total] = await Promise.all([
+    prisma.user.findMany({
+      where,
+      select: {
+        id:          true,
+        riotId:      true,
+        region:      true,
+        email:       true,
+        accountType: true,
+        createdAt:   true,
+        coachProfile: { select: { id: true, isApproved: true, isActive: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      skip:    (page - 1) * PAGE_SIZE,
+      take:    PAGE_SIZE,
+    }),
+    prisma.user.count({ where }),
+  ]);
+
+  return NextResponse.json({
+    users,
+    total,
+    page,
+    pageSize:  PAGE_SIZE,
+    pageCount: Math.ceil(total / PAGE_SIZE),
   });
-
-  return NextResponse.json({ users });
 }
 
 // ── PATCH /api/admin/users ────────────────────────────────────────────────────
