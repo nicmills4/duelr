@@ -30,7 +30,7 @@ export default function AccountGate({ accountType, featureName, children }: Prop
         <h3 className="text-lg font-bold text-white">{featureName} requires a free account</h3>
         <p className="text-sm text-gray-400 leading-relaxed">
           {isGuest
-            ? "You're browsing as a guest. Create a free account to unlock Practice Partners and Coaching."
+            ? "You're browsing as a guest. Create a free account to unlock Coaching and more."
             : "Create a free account or log in to unlock this feature."}
         </p>
       </div>

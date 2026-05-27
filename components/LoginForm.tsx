@@ -39,7 +39,7 @@ function GuestForm() {
     <form onSubmit={handleSubmit} className="space-y-5">
       <div className="bg-dark-700 border border-dark-600 rounded-lg px-4 py-3 text-xs text-gray-400 leading-relaxed">
         <span className="text-amber-400 font-semibold">Guest access</span> — Lobby &amp; Specific Matchups only.{" "}
-        Create a free account below to unlock Practice Partners and Coaching.
+        Create a free account below to unlock Coaching and more.
       </div>
 
       <div>
@@ -118,7 +118,7 @@ function SignupForm() {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="bg-dark-700 border border-emerald-500/20 rounded-lg px-4 py-3 text-xs text-gray-400 leading-relaxed">
-        <span className="text-emerald-400 font-semibold">Full access</span> — unlocks Practice Partners and Coaching in addition to Lobby &amp; Specific Matchups.
+        <span className="text-emerald-400 font-semibold">Full access</span> — unlocks Coaching, Practice Partners, and more in addition to Lobby &amp; Specific Matchups.
       </div>
 
       <div>

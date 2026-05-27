@@ -22,7 +22,7 @@ export default function AdBanner() {
             Ad
           </span>
           <span className="truncate">
-            Remove ads and unlock <span className="text-gray-300 font-medium">Practice Partners</span> — upgrade to Premium
+            Remove ads — upgrade to <span className="text-gray-300 font-medium">Premium</span>
           </span>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
