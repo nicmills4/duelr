@@ -275,7 +275,7 @@ All API routes are under `/api/`. Routes marked 🔒 require a user session; �
 | Method | Path | Auth | Description |
 |---|---|---|---|
 | `GET` | `/api/lobby/public` | — | List all currently available players |
-| `POST` | `/api/lobby/available` | 🔒 | Mark yourself available (refreshes TTL) |
+| `POST` | `/api/lobby/available` | 🔒 | Mark yourself available (refreshes TTL). Body: `myChampion`, `champName`, `champImage`, `eloBracket`, optional `acceptsType` (`"any"` \| `"melee"` \| `"ranged"`, default `"any"`), optional `vsChampions` (`string[]`, max 5 — preferred opponents) |
 | `POST` | `/api/lobby/leave` | 🔒 | Remove yourself from the lobby |
 | `POST` | `/api/lobby/challenge` | 🔒 | Challenge another player |
 | `POST` | `/api/lobby/respond` | 🔒 | Accept or decline a challenge |
@@ -453,13 +453,25 @@ Set `discordHandle` so students can contact the coach after payment. Set `contac
 
 ### Open Lobby
 
-Players broadcast themselves as available with a champion and ELO bracket. Any other player can challenge them directly.
+Players broadcast themselves as available with a champion, ELO bracket, and two optional preference fields. Any other player can challenge them directly.
 
-- Presence is stored in Redis with a TTL; players auto-expire if they close the tab
-- Challenges are stored as Redis keys; both players poll via SSE
+**Lobby entry fields:**
+- `myChampion` — champion the user wants to play (required)
+- `eloBracket` — one of `low | mid | high | elite | apex` (required)
+- `acceptsType` — `"any"` | `"melee"` | `"ranged"` — what kind of opponent they'll accept (default `"any"`)
+- `vsChampions` — up to 5 champion names the user *prefers* to face (optional; shown as "Preferred Matchups" on their card)
+
+These two preference fields are independent — a player can have both `acceptsType: "melee"` and a list of preferred opponents at the same time.
+
+**Real-time mechanics:**
+- Presence is stored in Redis with a 1-hour TTL; players auto-expire if they close the tab
+- Challenges are stored as Redis keys; both players get updates via SSE
 - On mutual accept: a `Match` DB record is created and a Discord voice channel is provisioned
+- **Public by default** — the lobby list (`GET /api/lobby/public` and `GET /api/lobby/players`) is readable without authentication, so visitors can see active lobbies as social proof. Posting or challenging requires a session.
 
 ### Automated Queue
+
+API-only automated matchmaking (`/api/queue/*`). The UI page (`/queue`) was removed; the endpoints remain active.
 
 Players join with `myChampion`, `vsChampions` (champions they want to face), and `eloBracket`. The server continuously tries to pair compatible entries.
 
@@ -580,7 +592,24 @@ Inline modal for selecting session duration and confirming price before redirect
 
 ### `LobbyBrowser`
 
-Real-time lobby view. Features copy-to-clipboard buttons on all Riot IDs shown in match results.
+Real-time lobby view. Publicly readable — no login required.
+
+Props: `riotId: string | null`, `userId: string | null`
+
+**When `userId` is null (guest):**
+- The full player list is visible
+- Player cards show a "Log in to play" CTA instead of a challenge button
+- The "go available" form is replaced with a login prompt
+
+**Lobby form (authenticated users):**
+- **"I'll play against"** — 3-button toggle: Any / Any Melee / Any Ranged (`acceptsType`)
+- **"Preferred Matchups"** — champion multi-select, up to 5 champions (`vsChampions`)
+- These are independent; users can and should fill in both
+- LocalStorage preserves selections across page loads
+
+**Player cards** show the champion portrait, acceptsType label, and (if set) a "Preferred Matchups" row with up to 5 champion portrait circles.
+
+Features copy-to-clipboard on all Riot IDs shown in match results.
 
 ---
 
@@ -612,8 +641,8 @@ The runner reads env vars from `.env` and auto-starts `next dev` if needed.
 | `02-admin.mjs` | Admin Panel | Auth, coach CRUD (including `discordHandle`/`contactEmail`), user management |
 | `03-leaderboard.mjs` | Leaderboard | Public leaderboard shape |
 | `04-partners.mjs` | Partner Finder | List, create, delete posts |
-| `05-lobby.mjs` | Open Lobby | Availability, public list, leave, challenge |
-| `06-queue.mjs` | Queue | Join, leave, count endpoint |
+| `05-lobby.mjs` | Open Lobby | Availability, public list (no auth), leave, challenge, vsChampions accepted/truncated, player entry shape |
+| `06-queue.mjs` | Automated Queue | Join, leave, count endpoint (UI page removed; API endpoints remain) |
 | `07-settings.mjs` | Settings | Account settings update guards |
 | `08-coaching.mjs` | Coaching | Public list shape + privacy, booking guards, session detail endpoint |
 | `09-email-verification.mjs` | Email Verification | Verification token flow |

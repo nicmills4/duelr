@@ -28,8 +28,10 @@ async function loginTestUser(http) {
   }
 }
 
-// The lobby/available route uses myChampion (not champId) and requires acceptsType
+// The lobby/available route uses myChampion (not champId).
+// acceptsType ("any" | "melee" | "ranged") and vsChampions (string[], max 5) are both optional.
 const CHAMP = { myChampion: "Zed", champName: "Zed", champImage: "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/champion/Zed.png", eloBracket: "mid", acceptsType: "any" };
+const CHAMP_WITH_VS = { ...CHAMP, acceptsType: "melee", vsChampions: ["Darius", "Garen"] };
 
 export const suite = {
   name: "Open Lobby",
@@ -128,6 +130,61 @@ export const suite = {
         });
         // Expect 400 or 404 — target not in lobby
         assert(res.status === 400 || res.status === 404, `Expected 400 or 404, got ${res.status}`);
+      },
+    },
+
+    // ── vsChampions + acceptsType ─────────────────────────────────────────────
+    {
+      name: "POST /api/lobby/available — accepts vsChampions array",
+      skip: !canTest,
+      skipReason: "TEST_RIOT_ID or TEST_EMAIL/TEST_PASSWORD not set",
+      async run(http) {
+        await loginTestUser(http);
+        const { res, data } = await http.post("/api/lobby/available", CHAMP_WITH_VS);
+        assertStatus(res, 200);
+        assertOk(data, "lobby available with vsChampions");
+        await http.post("/api/lobby/leave", {});
+      },
+    },
+    {
+      name: "POST /api/lobby/available — silently truncates vsChampions to 5",
+      skip: !canTest,
+      skipReason: "TEST_RIOT_ID or TEST_EMAIL/TEST_PASSWORD not set",
+      async run(http) {
+        await loginTestUser(http);
+        // Send 7 vsChampions — should succeed (server truncates, not rejects)
+        const { res } = await http.post("/api/lobby/available", {
+          ...CHAMP,
+          vsChampions: ["Darius", "Garen", "Malphite", "Sett", "Ornn", "Cho'Gath", "Nasus"],
+        });
+        assertStatus(res, 200);
+        await http.post("/api/lobby/leave", {});
+      },
+    },
+    {
+      name: "GET /api/lobby/players — returns players + groups without auth",
+      async run(http) {
+        const { res, data } = await http.get("/api/lobby/players");
+        assertStatus(res, 200);
+        assert(Array.isArray(data.players), "should have players array");
+        assert(Array.isArray(data.groups), "should have groups array");
+      },
+    },
+    {
+      name: "Lobby — player entries include acceptsType and vsChampions fields",
+      skip: !canTest,
+      skipReason: "TEST_RIOT_ID or TEST_EMAIL/TEST_PASSWORD not set",
+      async run(http) {
+        await loginTestUser(http);
+        await http.post("/api/lobby/available", CHAMP_WITH_VS);
+        const { data } = await http.get("/api/lobby/public");
+        if (data.players.length > 0) {
+          const p = data.players[0];
+          assert("acceptsType" in p, "player entry should have acceptsType");
+          assert("vsChampions" in p, "player entry should have vsChampions");
+          assert(Array.isArray(p.vsChampions), "vsChampions should be an array");
+        }
+        await http.post("/api/lobby/leave", {});
       },
     },
   ],

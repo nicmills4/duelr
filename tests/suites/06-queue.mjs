@@ -1,5 +1,7 @@
 /**
- * Suite 06 — Specific Matchups Queue
+ * Suite 06 — Automated Queue
+ * Tests the API-only automated matchmaking queue (/api/queue/*).
+ * The /queue UI page was removed; these endpoints remain active.
  * Needs a session. Set TEST_EMAIL + TEST_PASSWORD or TEST_RIOT_ID.
  */
 
@@ -34,7 +36,7 @@ const VALID_ENTRY = {
 };
 
 export const suite = {
-  name: "Specific Matchups Queue",
+  name: "Automated Queue",
   tests: [
 
     // ── Public endpoints ─────────────────────────────────────────────────────

@@ -62,19 +62,20 @@ Open http://localhost:3000
 ## How It Works
 
 1. **Login** — Enter your Riot ID (`GameName#TAG`) and region. We validate it
-   against the Riot API and create a session.
+   against the Riot API and create a session. The lobby is viewable by guests
+   without logging in (social proof), but posting or challenging requires a session.
 
-2. **Queue** — Choose:
+2. **Open Lobby** — Mark yourself available at `/lobby`. Choose:
    - The champion you want to **play**
-   - The champion you want to **face**
-   - Your elo bracket (Low / Mid / High / Elite)
+   - Who you'll play against: **Any / Any Melee / Any Ranged**
+   - Optionally, up to 5 **Preferred Matchup** champions (shown on your card)
+   - Your ELO bracket (Low / Mid / High / Elite / Apex)
 
-3. **Matchmaking** — We look for a player with the mirror setup
-   (they want to play your "vsChampion" against your "myChampion").
-   You're notified in real-time via SSE.
+3. **Challenge** — Browse available players and send a direct challenge.
+   Both players must accept. You're notified in real-time via SSE.
 
-4. **Match Found** — You see their Riot ID. Add them as a friend in the
-   League client and set up a custom game.
+4. **Match Found** — A Discord voice channel is created automatically. You see
+   their Riot ID — add them in the League client and start the custom game.
 
 ---
 
@@ -82,30 +83,39 @@ Open http://localhost:3000
 
 ```
 app/
-  page.tsx              → Landing + Login (redirects to /queue if logged in)
-  queue/page.tsx        → Queue page (protected)
+  page.tsx              → Landing + Login
+  lobby/page.tsx        → Open Lobby (publicly readable; post/challenge requires auth)
+  coaching/page.tsx     → Coaching marketplace
+  partners/page.tsx     → Partner finder board
   api/
-    auth/login          → Validate Riot ID + create session
-    auth/logout         → Destroy session + leave queue
+    auth/login          → Guest login via Riot ID
+    auth/login-email    → Full account login
+    auth/logout         → Destroy session + leave lobby
     riot/validate       → Validate a Riot ID without logging in
     champions           → Champion list from Data Dragon (cached 24h)
-    queue/join          → Join matchmaking queue
-    queue/leave         → Leave queue
-    queue/stream        → SSE endpoint — notifies when matched
+    lobby/available     → Mark yourself available (acceptsType + vsChampions)
+    lobby/leave         → Remove yourself from the lobby
+    lobby/challenge     → Challenge another player
+    lobby/respond       → Accept or decline a challenge
+    lobby/players       → Real-time player list (public, no auth required)
+    queue/join          → Automated queue join (API only — no UI page)
+    queue/leave         → Leave automated queue
 
 lib/
   prisma.ts             → Prisma client singleton
   redis.ts              → ioredis client + key helpers
-  riot.ts               → Riot API helpers
   session.ts            → JWT session (cookie-based)
-  matchmaking.ts        → Queue join/leave + matching logic
+  lobby.ts              → Redis lobby presence helpers
+  lobby-types.ts        → Shared types: LobbyEntry, AcceptsType, etc.
+  matchmaking.ts        → Automated queue join/leave + matching logic
   constants.ts          → ELO_BRACKETS (browser-safe, no Node deps)
+  feature-flags.ts      → Toggle flags (SHOW_ADBLOCK_MODAL, etc.)
 
 components/
-  LoginForm.tsx         → Riot ID + region form
-  QueueForm.tsx         → Champion selector + queue UI + SSE listener
+  LobbyBrowser.tsx      → Real-time open lobby (public read + auth post/challenge)
   ChampionSelector.tsx  → Searchable champion dropdown with icons
   LogoutButton.tsx      → Client-side logout button
+  NavLinks.tsx          → Responsive nav (hamburger on mobile, full on desktop)
 ```
 
 ---
