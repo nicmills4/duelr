@@ -37,7 +37,7 @@ export default function SuggestedMatchups() {
   useEffect(() => { fetchSuggestions(false); }, []);
 
   function queueForMatchup(myChampion: string, vsChampion: string) {
-    router.push(`/queue?my=${encodeURIComponent(myChampion)}&vs=${encodeURIComponent(vsChampion)}`);
+    router.push(`/lobby?my=${encodeURIComponent(myChampion)}&vs=${encodeURIComponent(vsChampion)}`);
   }
 
   if (loading) {

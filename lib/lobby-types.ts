@@ -11,13 +11,14 @@ export type SlotKey     = "team1_adc" | "team1_support" | "team2_adc" | "team2_s
 // ── 1v1 ───────────────────────────────────────────────────────────────────────
 
 export interface LobbyEntry {
-  userId:      string;
-  myChampion:  string;
-  champName:   string;
-  champImage:  string;
-  eloBracket:  string;
-  acceptsType: AcceptsType;
-  joinedAt:    number;
+  userId:       string;
+  myChampion:   string;
+  champName:    string;
+  champImage:   string;
+  eloBracket:   string;
+  acceptsType:  AcceptsType;
+  vsChampions?: string[];   // preferred opponent champion IDs (empty = any)
+  joinedAt:     number;
 }
 
 export interface LobbyPlayer extends LobbyEntry {

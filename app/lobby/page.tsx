@@ -1,5 +1,6 @@
 import { getSession } from "@/lib/session";
 import { redirect } from "next/navigation";
+import { Suspense } from "react";
 import LobbyBrowser from "@/components/LobbyBrowser";
 import LogoutButton from "@/components/LogoutButton";
 import SuggestedMatchups from "@/components/SuggestedMatchups";
@@ -29,7 +30,9 @@ export default async function LobbyPage() {
         <LogoutButton />
       </div>
 
-      <LobbyBrowser riotId={session.user.riotId} userId={session.userId} />
+      <Suspense>
+        <LobbyBrowser riotId={session.user.riotId} userId={session.userId} />
+      </Suspense>
       <SuggestedMatchups />
     </div>
   );
