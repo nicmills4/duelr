@@ -1,58 +1,60 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import Link from "next/link";
 
 const SESSION_KEY = "adblock_dismissed";
 
-function detectAdBlock(): Promise<boolean> {
-  return new Promise((resolve) => {
-    const bait = document.createElement("div");
-    bait.className = "ad ads adsbox ad-placement carbon-ads";
-    bait.style.cssText =
-      "height:1px;width:1px;position:absolute;left:-9999px;top:-9999px;";
-    document.body.appendChild(bait);
-
-    // Give the ad blocker time to act
+// Two-signal detection — both must agree before we show the modal.
+// 1. Bait element: ad blockers hide divs with ad-like class names.
+// 2. Script load: try to load the AdSense script; ad blockers block it.
+async function detectAdBlock(): Promise<boolean> {
+  const baitBlocked = await new Promise<boolean>((resolve) => {
+    const el = document.createElement("div");
+    el.className = "ad ads adsbox ad-placement carbon-ads pub_300x250";
+    el.style.cssText = "height:1px;width:1px;position:absolute;left:-9999px;top:-9999px;pointer-events:none;";
+    document.body.appendChild(el);
     setTimeout(() => {
-      const style = window.getComputedStyle(bait);
+      const s = window.getComputedStyle(el);
       const blocked =
-        bait.offsetHeight === 0 ||
-        bait.offsetWidth  === 0 ||
-        style.display     === "none" ||
-        style.visibility  === "hidden" ||
-        style.opacity     === "0";
-      document.body.removeChild(bait);
+        el.offsetHeight === 0 ||
+        el.offsetWidth  === 0 ||
+        s.display       === "none" ||
+        s.visibility    === "hidden" ||
+        s.opacity       === "0";
+      document.body.removeChild(el);
       resolve(blocked);
-    }, 200);
+    }, 300);
   });
+
+  if (baitBlocked) return true;
+
+  // Fallback: try fetching a known ad URL — ad blockers will reject it
+  try {
+    await fetch(
+      "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js",
+      { method: "HEAD", mode: "no-cors", cache: "no-store" }
+    );
+    return false;
+  } catch {
+    return true;
+  }
 }
 
 export default function AdBlockModal() {
-  const [show,     setShow]     = useState(false);
-  const detectedRef             = useRef(false);
-  const handlerRef              = useRef<(() => void) | null>(null);
+  const [show, setShow] = useState(false);
 
   useEffect(() => {
     if (sessionStorage.getItem(SESSION_KEY)) return;
 
-    detectAdBlock().then((blocked) => {
-      if (!blocked) return;
-      detectedRef.current = true;
+    // Wait 1.5 s after load so the page settles, then check
+    const timer = setTimeout(async () => {
+      const blocked = await detectAdBlock();
+      if (blocked && !sessionStorage.getItem(SESSION_KEY)) setShow(true);
+    }, 1500);
 
-      // Show modal on the next user click
-      const handler = () => {
-        if (!sessionStorage.getItem(SESSION_KEY)) setShow(true);
-      };
-      document.addEventListener("click", handler, { once: true });
-      handlerRef.current = handler;
-    });
-
-    return () => {
-      if (handlerRef.current)
-        document.removeEventListener("click", handlerRef.current);
-    };
+    return () => clearTimeout(timer);
   }, []);
 
   function dismiss() {
