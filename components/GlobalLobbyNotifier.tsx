@@ -97,13 +97,15 @@ export default function GlobalLobbyNotifier() {
         {/* Opponent info */}
         <div className="flex items-center gap-3">
           {match.champImage && (
-            <Image
-              src={match.champImage}
-              alt={match.champName}
-              width={40}
-              height={40}
-              className="rounded-full ring-2 ring-emerald-500/40 flex-shrink-0"
-            />
+            <div className="w-10 h-10 rounded-full ring-2 ring-emerald-500/40 overflow-hidden flex-shrink-0">
+              <Image
+                src={match.champImage}
+                alt={match.champName}
+                width={40}
+                height={40}
+                className="scale-110"
+              />
+            </div>
           )}
           <div className="min-w-0">
             <p className="text-sm text-white font-semibold truncate">{match.riotId}</p>

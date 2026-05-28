@@ -62,13 +62,15 @@ export default function LobbyPreview({ refreshInterval = 20_000 }: { refreshInte
                 isLast ? "overflow-hidden" : ""
               }`}
             >
-              <Image
-                src={player.champImage}
-                alt={player.champName}
-                width={32}
-                height={32}
-                className="rounded-full ring-1 ring-dark-500 flex-shrink-0"
-              />
+              <div className="w-8 h-8 rounded-full ring-1 ring-dark-500 overflow-hidden flex-shrink-0">
+                <Image
+                  src={player.champImage}
+                  alt={player.champName}
+                  width={32}
+                  height={32}
+                  className="scale-110"
+                />
+              </div>
               <div className="min-w-0">
                 <p className="text-xs font-semibold text-white truncate leading-tight">
                   {player.riotId.split("#")[0]}

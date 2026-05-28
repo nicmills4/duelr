@@ -92,8 +92,9 @@ export default function ChampionSelector({
       >
         {selected ? (
           <>
-            <Image src={selected.imageUrl} alt={selected.name} width={32} height={32}
-              className="rounded-full ring-1 ring-gold-400" />
+            <div className="w-8 h-8 rounded-full ring-1 ring-gold-400 overflow-hidden flex-shrink-0">
+              <Image src={selected.imageUrl} alt={selected.name} width={32} height={32} className="scale-110" />
+            </div>
             <span className="font-medium">{selected.name}</span>
             <X className="ml-auto w-4 h-4 text-gray-500 hover:text-gray-300" onClick={clear} />
           </>

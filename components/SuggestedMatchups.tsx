@@ -88,13 +88,15 @@ export default function SuggestedMatchups() {
         <div key={champ.myChampion} className="card space-y-3">
           {/* Champion header */}
           <div className="flex items-center gap-3">
-            <Image
-              src={champ.imageUrl}
-              alt={champ.myChampion}
-              width={40}
-              height={40}
-              className="rounded-full ring-2 ring-gold-400"
-            />
+            <div className="w-10 h-10 rounded-full ring-2 ring-gold-400 overflow-hidden flex-shrink-0">
+              <Image
+                src={champ.imageUrl}
+                alt={champ.myChampion}
+                width={40}
+                height={40}
+                className="scale-110"
+              />
+            </div>
             <div>
               <p className="font-semibold text-white">{champ.myChampion}</p>
               <p className="text-xs text-gray-500">

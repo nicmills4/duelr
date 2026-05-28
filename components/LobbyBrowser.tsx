@@ -103,8 +103,9 @@ function VsChip({
   return (
     <div className="flex items-center gap-1.5 bg-dark-700 border border-dark-600 rounded-lg px-2.5 py-1.5 text-sm">
       {champ && (
-        <Image src={champ.imageUrl} alt={champ.name} width={18} height={18}
-          className="rounded-full ring-1 ring-dark-500" />
+        <div className="w-[18px] h-[18px] rounded-full ring-1 ring-dark-500 overflow-hidden flex-shrink-0">
+          <Image src={champ.imageUrl} alt={champ.name} width={18} height={18} className="scale-110" />
+        </div>
       )}
       <span className="text-gray-200 font-medium text-xs">{champ?.name ?? vsId}</span>
       <button type="button" onClick={onRemove} className="ml-0.5 text-gray-500 hover:text-gray-300 transition-colors">
@@ -125,8 +126,9 @@ function PlayerCard({
 
   return (
     <div className="card flex items-center gap-4">
-      <Image src={player.champImage} alt={player.champName}
-        width={48} height={48} className="rounded-full ring-2 ring-dark-600 flex-shrink-0" />
+      <div className="w-12 h-12 rounded-full ring-2 ring-dark-600 overflow-hidden flex-shrink-0">
+        <Image src={player.champImage} alt={player.champName} width={48} height={48} className="scale-110" />
+      </div>
       <div className="flex-1 min-w-0">
         <p className="font-semibold text-white text-sm truncate">{player.riotId}</p>
         <p className="text-xs text-gray-400">
@@ -191,8 +193,9 @@ function SlotCell({
   if (slot) {
     return (
       <div className={`flex flex-col items-center gap-1.5 p-2.5 rounded-xl border ${isMe ? "border-gold-400/40 bg-gold-400/5" : "border-dark-600 bg-dark-700/50"}`}>
-        <Image src={slot.champImage} alt={slot.champName}
-          width={36} height={36} className="rounded-full ring-1 ring-dark-500" />
+        <div className="w-9 h-9 rounded-full ring-1 ring-dark-500 overflow-hidden">
+          <Image src={slot.champImage} alt={slot.champName} width={36} height={36} className="scale-110" />
+        </div>
         <p className="text-[10px] font-semibold text-white truncate max-w-[72px] text-center leading-tight">
           {slot.riotId.split("#")[0]}
         </p>
@@ -819,7 +822,9 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
             <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold">{label}</p>
             {team.map((s) => (
               <div key={s.userId} className="flex items-center gap-3">
-                <Image src={s.champImage} alt={s.champName} width={32} height={32} className="rounded-full ring-1 ring-dark-500" />
+                <div className="w-8 h-8 rounded-full ring-1 ring-dark-500 overflow-hidden flex-shrink-0">
+                  <Image src={s.champImage} alt={s.champName} width={32} height={32} className="scale-110" />
+                </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <p className="text-sm font-semibold text-white">{s.riotId}</p>
@@ -856,8 +861,9 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
           <h2 className="text-xl font-bold">Challenge Accepted!</h2>
         </div>
         {matchResult.champImage && (
-          <Image src={matchResult.champImage} alt={matchResult.champName} width={64} height={64}
-            className="rounded-full ring-2 ring-gold-400 mx-auto" />
+          <div className="w-16 h-16 rounded-full ring-2 ring-gold-400 overflow-hidden mx-auto">
+            <Image src={matchResult.champImage} alt={matchResult.champName} width={64} height={64} className="scale-110" />
+          </div>
         )}
         <div className="bg-dark-700 border border-dark-600 rounded-xl p-4 text-left space-y-1">
           <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold">Your opponent</p>
@@ -903,8 +909,9 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
         <div className="flex items-center justify-center gap-6">
           {incoming.challengerChampImage && (
             <div className="flex flex-col items-center gap-2">
-              <Image src={incoming.challengerChampImage} alt={incoming.challengerChampName}
-                width={64} height={64} className="rounded-full ring-2 ring-gold-400" />
+              <div className="w-16 h-16 rounded-full ring-2 ring-gold-400 overflow-hidden">
+                <Image src={incoming.challengerChampImage} alt={incoming.challengerChampName} width={64} height={64} className="scale-110" />
+              </div>
               <span className="text-sm font-medium">{incoming.challengerChampName}</span>
               <span className="text-xs text-gray-500 uppercase">{incoming.challengerElo} elo</span>
             </div>
@@ -912,8 +919,9 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
           <Swords className="w-8 h-8 text-gray-600" />
           {myChampData ? (
             <div className="flex flex-col items-center gap-2">
-              <Image src={myChampData.imageUrl} alt={myChampData.name} width={64} height={64}
-                className="rounded-full ring-2 ring-gray-600" />
+              <div className="w-16 h-16 rounded-full ring-2 ring-gray-600 overflow-hidden">
+                <Image src={myChampData.imageUrl} alt={myChampData.name} width={64} height={64} className="scale-110" />
+              </div>
               <span className="text-sm font-medium">{myChampData.name}</span>
               <span className="text-xs text-gray-500">You</span>
             </div>
@@ -1134,7 +1142,9 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
                     <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-500" />
                   </span>
                   {myChampData ? (
-                    <Image src={myChampData.imageUrl} alt={myChampData.name} width={40} height={40} className="rounded-full" />
+                    <div className="w-10 h-10 rounded-full overflow-hidden">
+                    <Image src={myChampData.imageUrl} alt={myChampData.name} width={40} height={40} className="scale-110" />
+                  </div>
                   ) : (
                     <div className="w-10 h-10 rounded-full bg-dark-600" />
                   )}
