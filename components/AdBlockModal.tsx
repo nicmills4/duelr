@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import Link from "next/link";
+import { SHOW_ADBLOCK_MODAL } from "@/lib/feature-flags";
 
 
 // Two-signal detection — both must agree before we show the modal.
@@ -45,6 +46,7 @@ export default function AdBlockModal() {
   const [show, setShow] = useState(false);
 
   useEffect(() => {
+    if (!SHOW_ADBLOCK_MODAL) return;
     const timer = setTimeout(async () => {
       const blocked = await detectAdBlock();
       if (blocked) setShow(true);
