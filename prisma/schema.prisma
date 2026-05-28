@@ -142,6 +142,9 @@ model Match {
   riotMatchId  String?          // Riot match ID once found
   autoReported Boolean @default(false) // true once polling resolved or timed out
 
+  // Custom game join link — set by the desktop app via PATCH /api/match/[id]/lobby-url
+  lobbyJoinUrl String?          // https://gg.riotgames.com/LOL?joinCode=XXX
+
   @@index([playerAId])
   @@index([playerBId])
   @@index([outcome])

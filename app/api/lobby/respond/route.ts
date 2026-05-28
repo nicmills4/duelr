@@ -73,6 +73,7 @@ export async function POST(req: NextRequest) {
     champName:       responderLobby?.champName ?? "",
     champImage:      responderLobby?.champImage ?? "",
     voiceChannelUrl,
+    matchId:         dbMatch.id,
   };
 
   // Persist match result in Redis for 10 min so the challenger can retrieve it
@@ -90,14 +91,22 @@ export async function POST(req: NextRequest) {
     JSON.stringify({ type: "challenge_accepted", opponent: opponentForChallenger })
   );
 
-  // Return challenger data to the responder inline (they accepted synchronously)
+  // Return data to the responder inline (they accepted synchronously)
   return NextResponse.json({
     ok:       true,
     accepted: true,
+    // Web app (LobbyBrowser) reads this:
     challenger: {
       riotId:          challenge.challengerRiotId,
       champName:       challenge.challengerChampName,
       champImage:      challenge.challengerChampImage,
+      voiceChannelUrl: voiceChannelUrl ?? undefined,
+      matchId:         dbMatch.id,
+    },
+    // Desktop app (LobbyPage) reads this:
+    match: {
+      id:              dbMatch.id,
+      opponentRiotId:  challenge.challengerRiotId,
       voiceChannelUrl: voiceChannelUrl ?? undefined,
     },
   });
