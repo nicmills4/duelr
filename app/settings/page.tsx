@@ -10,7 +10,7 @@ export default async function SettingsPage() {
   if (!session) redirect("/");
 
   return (
-    <div className="max-w-xl mx-auto px-4 py-10">
+    <div className="max-w-xl mx-auto px-4 py-6 sm:py-10">
       <div className="flex items-center gap-3 mb-8">
         <Settings className="w-6 h-6 text-gold-400" />
         <h1 className="text-2xl font-bold text-white font-display tracking-wide">

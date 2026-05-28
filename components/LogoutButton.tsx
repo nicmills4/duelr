@@ -16,9 +16,10 @@ export default function LogoutButton() {
   }
 
   return (
-    <button onClick={handleLogout} disabled={loading} className="btn-secondary flex items-center gap-2 text-sm whitespace-nowrap">
+    <button onClick={handleLogout} disabled={loading}
+      className="btn-secondary flex items-center gap-2 text-sm whitespace-nowrap">
       {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogOut className="w-4 h-4" />}
-      Log out
+      <span className="hidden sm:inline">Log out</span>
     </button>
   );
 }

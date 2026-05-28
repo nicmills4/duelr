@@ -60,15 +60,15 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           </a>
         </div>
         <header className="border-b border-dark-600 bg-dark-800/80 backdrop-blur-sm sticky top-0 z-50">
-          <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
+          <div className="relative max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
             <a href="/" className="flex items-center gap-2">
               <span className="font-display text-2xl tracking-wide"><span className="text-amber-400">Duel</span><span className="text-white">r</span></span>
             </a>
-            <NavLinks accountType={accountType as "none" | "guest" | "full"} />
+            <NavLinks accountType={accountType as "none" | "guest" | "full"} hasSession={!!session} />
             {session && (
               <a
                 href="/settings"
-                className="ml-2 p-1.5 rounded-lg text-gray-500 hover:text-gray-300 hover:bg-dark-700 transition-colors"
+                className="hidden md:flex ml-2 p-1.5 rounded-lg text-gray-500 hover:text-gray-300 hover:bg-dark-700 transition-colors"
                 aria-label="Account settings"
               >
                 <Settings className="w-4 h-4" />

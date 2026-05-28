@@ -8,8 +8,8 @@ export default async function LobbyPage() {
   const session = await getSession();
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-10">
-      <div className="flex items-start justify-between mb-8">
+    <div className="max-w-2xl mx-auto px-4 py-6 sm:py-10">
+      <div className="flex items-start justify-between gap-4 mb-8">
         <div>
           <h1 className="text-2xl font-bold text-white font-display tracking-wide">
             Open <span className="text-amber-400">Lobby</span>
