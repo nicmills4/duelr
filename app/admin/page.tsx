@@ -326,10 +326,20 @@ function EditCoachModal({ coach, onClose, onSaved }: {
     isApproved:        coach.isApproved,
     isActive:          coach.isActive,
   });
-  const [loading, setLoading] = useState(false);
-  const [error,   setError]   = useState("");
+  const [loading,       setLoading]       = useState(false);
+  const [error,         setError]         = useState("");
+  const [connectCopied, setConnectCopied] = useState(false);
 
   const set = (k: string, v: string | boolean) => setForm(f => ({ ...f, [k]: v }));
+
+  async function copyConnectUrl() {
+    const res = await fetch(`/api/admin/coaches/${coach.id}/stripe-connect`);
+    if (!res.ok) return;
+    const { connectUrl } = await res.json();
+    copyText(connectUrl);
+    setConnectCopied(true);
+    setTimeout(() => setConnectCopied(false), 2000);
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -406,6 +416,31 @@ function EditCoachModal({ coach, onClose, onSaved }: {
             <textarea className={`${inp} resize-none h-20`} value={form.bio}
               onChange={e => set("bio", e.target.value)} maxLength={500} />
           </Row>
+
+          {/* ── Stripe status (read-only) ──────────────────────────────── */}
+          <div className="bg-gray-800/60 border border-gray-700 rounded-lg px-3 py-3 space-y-1.5">
+            <p className="text-[10px] text-gray-500 font-semibold uppercase tracking-widest">Stripe Connect</p>
+            {coach.stripeAccountId ? (
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-violet-400 flex-shrink-0" />
+                <span className="text-xs font-mono text-gray-300 break-all select-all">{coach.stripeAccountId}</span>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-xs text-amber-400/80">Not linked — coach hasn&apos;t completed Stripe onboarding</span>
+                <button
+                  type="button"
+                  onClick={copyConnectUrl}
+                  className="flex items-center gap-1.5 text-xs bg-violet-600/20 hover:bg-violet-600/30 text-violet-400 rounded-lg px-2.5 py-1.5 transition-colors flex-shrink-0"
+                >
+                  {connectCopied
+                    ? <><Check className="w-3 h-3" /> Copied!</>
+                    : <><Copy className="w-3 h-3" /> Copy link</>}
+                </button>
+              </div>
+            )}
+          </div>
+
           <div className="flex gap-6">
             <Toggle label="Approved" value={form.isApproved} onChange={v => set("isApproved", v)} color="emerald" />
             <Toggle label="Active"   value={form.isActive}   onChange={v => set("isActive",   v)} color="blue"    />
