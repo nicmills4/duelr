@@ -143,16 +143,19 @@ function PlayerCard({
             </span>
           )}
           {vsIds.length > 0 ? (
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {vsIds.slice(0, 5).map((id) => {
-                const c = champions.find((ch) => ch.id === id);
-                return c ? (
-                  <div key={id} className="flex items-center gap-1 text-[10px] text-gray-500">
-                    <Image src={c.imageUrl} alt={c.name} width={14} height={14} className="rounded-full opacity-80" />
-                    {c.name}
-                  </div>
-                ) : null;
-              })}
+            <div className="mt-0.5 space-y-0.5">
+              <p className="text-[10px] text-gray-500 font-semibold uppercase tracking-wide">Preferred Matchups</p>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {vsIds.slice(0, 5).map((id) => {
+                  const c = champions.find((ch) => ch.id === id);
+                  return c ? (
+                    <div key={id} className="flex items-center gap-1 text-[10px] text-gray-400">
+                      <Image src={c.imageUrl} alt={c.name} width={14} height={14} className="rounded-full opacity-80" />
+                      {c.name}
+                    </div>
+                  ) : null;
+                })}
+              </div>
             </div>
           ) : (
             accepts === "any" && (
