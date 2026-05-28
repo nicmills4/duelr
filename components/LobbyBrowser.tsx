@@ -1098,7 +1098,7 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
 
               <p className="text-xs text-gray-600 mt-1.5">
                 {vsChampions.length === 0
-                  ? "Optional — leave empty to accept any opponent"
+                  ? "Optional — tell people who you'd prefer to play against"
                   : "Opponents playing one of these are shown first"}
               </p>
             </div>
