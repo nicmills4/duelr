@@ -64,7 +64,7 @@ function ProtectedLink({
 export default function NavLinks({ accountType }: { accountType: AccountType }) {
   return (
     <nav className="flex items-center gap-4 text-sm text-gray-400">
-      <ProtectedLink href="/lobby"      label="Lobby"             accountType={accountType} requiresFull={false} />
+      <a href="/lobby" className="hover:text-gold-400 transition-colors">Lobby</a>
       <ProtectedLink href="/partners"   label="Practice Partners" accountType={accountType} requiresFull={true}  />
       <ProtectedLink href="/coaching"   label="Coaching"          accountType={accountType} requiresFull={true}  />
       <a href="/leaderboard" className="hover:text-gold-400 transition-colors">Leaderboard</a>
