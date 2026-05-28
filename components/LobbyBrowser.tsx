@@ -14,7 +14,7 @@ import { ALL_SLOTS, SLOT_ROLE, userSlotIn, groupIsFull } from "@/lib/lobby-types
 import {
   Swords, Users, CheckCircle2, XCircle, Loader2,
   Radio, RefreshCw, Clock, Filter, X, Shield,
-  UserPlus, LogOut, Crown, Copy, Check, Plus,
+  UserPlus, LogOut, Crown, Copy, Check, Plus, LogIn,
 } from "lucide-react";
 import { playQueuePop } from "@/lib/sounds";
 
@@ -50,8 +50,8 @@ interface GroupReadyResult {
 }
 
 interface Props {
-  riotId: string;
-  userId: string;
+  riotId: string | null;
+  userId: string | null;
 }
 
 // ── Countdown helper ──────────────────────────────────────────────────────────
@@ -118,8 +118,8 @@ function VsChip({
 // ── Player card (1v1) ─────────────────────────────────────────────────────────
 
 function PlayerCard({
-  player, champions, onChallenge, disabled,
-}: { player: LobbyPlayer; champions: Champion[]; onChallenge: () => void; disabled: boolean }) {
+  player, champions, onChallenge, disabled, isGuest,
+}: { player: LobbyPlayer; champions: Champion[]; onChallenge: () => void; disabled: boolean; isGuest: boolean }) {
   const bracketLabel = ELO_BRACKETS.find((b) => b.value === player.eloBracket)?.label ?? player.eloBracket;
   const vsIds        = player.vsChampions ?? [];
   const accepts      = player.acceptsType ?? "any";
@@ -166,10 +166,17 @@ function PlayerCard({
           )}
         </div>
       </div>
-      <button onClick={onChallenge} disabled={disabled}
-        className="btn-primary text-sm px-4 py-1.5 flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed">
-        Challenge
-      </button>
+      {isGuest ? (
+        <a href="/"
+          className="btn-secondary text-xs px-3 py-1.5 flex-shrink-0 whitespace-nowrap flex items-center gap-1.5">
+          <LogIn className="w-3 h-3" /> Log in
+        </a>
+      ) : (
+        <button onClick={onChallenge} disabled={disabled}
+          className="btn-primary text-sm px-4 py-1.5 flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed">
+          Challenge
+        </button>
+      )}
     </div>
   );
 }
@@ -543,16 +550,18 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
     return () => clearInterval(id);
   }, [fetchPlayers]);
 
-  // Check for pending 1v1 match result
+  // Check for pending 1v1 match result (authenticated only)
   useEffect(() => {
+    if (!userId) return;
     fetch("/api/lobby/pending-match")
       .then((r) => r.json())
       .then((d) => { if (d.match) setMatchResult(d.match); })
       .catch(() => {});
-  }, []);
+  }, [userId]);
 
-  // ── SSE for real-time events ──────────────────────────────────────────────────
+  // ── SSE for real-time events (authenticated only) ────────────────────────────
   useEffect(() => {
+    if (!userId) return;
     const sse = new EventSource("/api/notifications/stream");
     sseRef.current = sse;
 
@@ -775,7 +784,7 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
 
   const myChampData    = champions.find((c) => c.id === myChampion);
   const myBracketLabel = ELO_BRACKETS.find((b) => b.value === eloBracket)?.label ?? eloBracket;
-  const otherPlayers   = players.filter((p) => p.userId !== userId);
+  const otherPlayers   = players.filter((p) => !userId || p.userId !== userId);
 
   const availableRegions = useMemo(
     () => [...new Set(otherPlayers.map((p) => p.region))].sort(),
@@ -952,7 +961,7 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
     <div className="space-y-6">
 
       {/* ── Mode toggle ──────────────────────────────────────────────────────── */}
-      {!available && !myGroup && (
+      {!!userId && !available && !myGroup && (
         <div className="flex rounded-xl overflow-hidden border border-dark-600 w-fit">
           {(["1v1", "2v2"] as LobbyMode[]).map((m) => (
             <button key={m} type="button" onClick={() => setMode(m)}
@@ -976,7 +985,7 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
         )}
 
         {/* 2v2: create group form */}
-        {!myGroup && mode === "2v2" && (
+        {!!userId && !myGroup && mode === "2v2" && (
           <>
             <div>
               <h2 className="text-lg font-bold text-white">Create a 2v2 Group</h2>
@@ -1036,8 +1045,22 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
           </>
         )}
 
+        {/* Guest CTA */}
+        {!userId && (
+          <div className="text-center py-8 space-y-3">
+            <Radio className="w-8 h-8 mx-auto text-gray-600" />
+            <p className="font-semibold text-white">Want to post your own lobby?</p>
+            <p className="text-sm text-gray-500">
+              Log in with your Riot ID to go available and challenge other players.
+            </p>
+            <a href="/" className="btn-primary inline-flex items-center gap-2 mt-1">
+              <LogIn className="w-4 h-4" /> Log in to play
+            </a>
+          </div>
+        )}
+
         {/* 1v1: not yet available */}
-        {!available && mode === "1v1" && (
+        {!!userId && !available && mode === "1v1" && (
           <>
             <div>
               <h2 className="text-lg font-bold text-white">Go Available</h2>
@@ -1132,7 +1155,7 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
         )}
 
         {/* 1v1: available status */}
-        {available && mode === "1v1" && (
+        {!!userId && available && mode === "1v1" && (
           <>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -1307,6 +1330,7 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
                 champions={champions}
                 onChallenge={() => sendChallenge(player)}
                 disabled={!available || !!outgoing || challenging === player.userId}
+                isGuest={!userId}
               />
             ))}
           </div>

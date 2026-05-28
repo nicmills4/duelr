@@ -6,12 +6,11 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 
   const [players, groups, myGroup] = await Promise.all([
     getLobbyPlayers(),
     getLobbyGroups(),
-    getUserLobbyGroup(session.userId),
+    session ? getUserLobbyGroup(session.userId) : Promise.resolve(null),
   ]);
 
   return NextResponse.json({ players, groups, myGroup });

@@ -1,5 +1,4 @@
 import { getSession } from "@/lib/session";
-import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import LobbyBrowser from "@/components/LobbyBrowser";
 import LogoutButton from "@/components/LogoutButton";
@@ -7,7 +6,6 @@ import SuggestedMatchups from "@/components/SuggestedMatchups";
 
 export default async function LobbyPage() {
   const session = await getSession();
-  if (!session) redirect("/");
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-10">
@@ -20,20 +18,32 @@ export default async function LobbyPage() {
             Mark yourself as available — other players can see you and send a direct challenge.
             No queue, no wait.
           </p>
-          <p className="text-xs text-gray-600 mt-1">
-            Logged in as{" "}
-            <span className="text-gold-400 font-medium">{session.user.riotId}</span>
-            {" · "}
-            <span className="uppercase">{session.user.region}</span>
-          </p>
+          {session && (
+            <p className="text-xs text-gray-600 mt-1">
+              Logged in as{" "}
+              <span className="text-gold-400 font-medium">{session.user.riotId}</span>
+              {" · "}
+              <span className="uppercase">{session.user.region}</span>
+            </p>
+          )}
         </div>
-        <LogoutButton />
+        {session ? (
+          <LogoutButton />
+        ) : (
+          <a href="/" className="btn-secondary text-sm px-4 py-2 flex-shrink-0">
+            Log in
+          </a>
+        )}
       </div>
 
       <Suspense>
-        <LobbyBrowser riotId={session.user.riotId} userId={session.userId} />
+        <LobbyBrowser
+          riotId={session?.user.riotId ?? null}
+          userId={session?.userId ?? null}
+        />
       </Suspense>
-      <SuggestedMatchups />
+
+      {session && <SuggestedMatchups />}
     </div>
   );
 }
