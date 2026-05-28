@@ -8,7 +8,7 @@ import { ELO_BRACKETS, BRACKET_ORDER } from "@/lib/constants";
 import type { EloBracket } from "@/lib/constants";
 import type { Champion } from "@/app/api/champions/route";
 import type {
-  LobbyPlayer, LobbyMode, SlotKey, LobbyGroup, GroupSlot,
+  LobbyPlayer, LobbyMode, SlotKey, LobbyGroup, GroupSlot, AcceptsType,
 } from "@/lib/lobby-types";
 import { ALL_SLOTS, SLOT_ROLE, userSlotIn, groupIsFull } from "@/lib/lobby-types";
 import {
@@ -121,6 +121,7 @@ function PlayerCard({
 }: { player: LobbyPlayer; champions: Champion[]; onChallenge: () => void; disabled: boolean }) {
   const bracketLabel = ELO_BRACKETS.find((b) => b.value === player.eloBracket)?.label ?? player.eloBracket;
   const vsIds        = player.vsChampions ?? [];
+  const accepts      = player.acceptsType ?? "any";
 
   return (
     <div className="card flex items-center gap-4">
@@ -131,21 +132,34 @@ function PlayerCard({
         <p className="text-xs text-gray-400">
           {player.champName} · {bracketLabel} · {player.region.toUpperCase()}
         </p>
-        {vsIds.length > 0 ? (
-          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-            {vsIds.slice(0, 5).map((id) => {
-              const c = champions.find((ch) => ch.id === id);
-              return c ? (
-                <div key={id} className="flex items-center gap-1 text-[10px] text-gray-500">
-                  <Image src={c.imageUrl} alt={c.name} width={14} height={14} className="rounded-full opacity-80" />
-                  {c.name}
-                </div>
-              ) : null;
-            })}
-          </div>
-        ) : (
-          <p className="text-xs text-gray-600 mt-0.5">Open to all opponents</p>
-        )}
+        <div className="flex items-center gap-2 mt-1 flex-wrap">
+          {accepts !== "any" && (
+            <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded border ${
+              accepts === "melee"
+                ? "text-orange-400 bg-orange-400/10 border-orange-400/20"
+                : "text-blue-400 bg-blue-400/10 border-blue-400/20"
+            }`}>
+              {accepts === "melee" ? "Melee only" : "Ranged only"}
+            </span>
+          )}
+          {vsIds.length > 0 ? (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {vsIds.slice(0, 5).map((id) => {
+                const c = champions.find((ch) => ch.id === id);
+                return c ? (
+                  <div key={id} className="flex items-center gap-1 text-[10px] text-gray-500">
+                    <Image src={c.imageUrl} alt={c.name} width={14} height={14} className="rounded-full opacity-80" />
+                    {c.name}
+                  </div>
+                ) : null;
+              })}
+            </div>
+          ) : (
+            accepts === "any" && (
+              <p className="text-[10px] text-gray-600">Open to all opponents</p>
+            )
+          )}
+        </div>
       </div>
       <button onClick={onChallenge} disabled={disabled}
         className="btn-primary text-sm px-4 py-1.5 flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed">
@@ -379,6 +393,7 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
 
   // ── 1v1 state ────────────────────────────────────────────────────────────────
   const [myChampion,     setMyChampion]     = useState(urlMy);
+  const [acceptsType,    setAcceptsType]    = useState<AcceptsType>("any");
   const [vsChampions,    setVsChampions]    = useState<string[]>(urlVs ? [urlVs] : []);
   const [addingVs,       setAddingVs]       = useState(false);
   const [eloBracket,     setEloBracket]     = useState<EloBracket>("mid");
@@ -437,9 +452,10 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
     try {
       const saved = localStorage.getItem("duelr:lobby:form");
       if (saved) {
-        const { myChampion: c, eloBracket: e, vsChampions: v } = JSON.parse(saved);
+        const { myChampion: c, eloBracket: e, acceptsType: a, vsChampions: v } = JSON.parse(saved);
         if (!urlMy && c) setMyChampion(c);
         if (e) setEloBracket(e as EloBracket);
+        if (a) setAcceptsType(a as AcceptsType);
         if (!urlVs && Array.isArray(v)) setVsChampions(v);
       }
     } catch {}
@@ -449,9 +465,9 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
   useEffect(() => {
     if (!myChampion) return;
     try {
-      localStorage.setItem("duelr:lobby:form", JSON.stringify({ myChampion, eloBracket, vsChampions }));
+      localStorage.setItem("duelr:lobby:form", JSON.stringify({ myChampion, eloBracket, acceptsType, vsChampions }));
     } catch {}
-  }, [myChampion, eloBracket, vsChampions]);
+  }, [myChampion, eloBracket, acceptsType, vsChampions]);
 
   // ── Fetch players + groups ────────────────────────────────────────────────────
   const fetchPlayers = useCallback((restore = false) => {
@@ -471,6 +487,7 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
           if (me1v1) {
             setMyChampion(me1v1.myChampion);
             setEloBracket(me1v1.eloBracket as EloBracket);
+            if (me1v1.acceptsType) setAcceptsType(me1v1.acceptsType);
             if (me1v1.vsChampions) setVsChampions(me1v1.vsChampions);
             setAvailable(true);
             setMode("1v1");
@@ -613,7 +630,7 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
       headers: { "Content-Type": "application/json" },
       body:    JSON.stringify({
         myChampion, champName: champ.name, champImage: champ.imageUrl,
-        eloBracket, acceptsType: "any", vsChampions,
+        eloBracket, acceptsType, vsChampions,
       }),
     });
     const data = await res.json().catch(() => ({}));
@@ -779,10 +796,11 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
 
   const isBusy = available || !!myGroup || !!outgoing;
 
-  // ── vsChampion display label ──────────────────────────────────────────────────
+  // ── acceptsType + vsChampions display labels ─────────────────────────────────
+  const acceptsLabel = acceptsType === "melee" ? "Melee only" : acceptsType === "ranged" ? "Ranged only" : "Any";
   const vsLabel = vsChampions.length > 0
     ? vsChampions.map((v) => champions.find((c) => c.id === v)?.name ?? v).join(", ")
-    : "Any opponent";
+    : null;
 
   // ── 2v2 group ready screen ────────────────────────────────────────────────────
   if (groupReady) {
@@ -1019,10 +1037,27 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
 
             <ChampionSelector label="I'm playing" value={myChampion} onChange={setMyChampion} champions={champions} />
 
-            {/* I'll play against — champion multi-select */}
+            {/* I'll play against — acceptsType toggle */}
+            <div>
+              <span className="label">I&apos;ll play against</span>
+              <div className="flex gap-2">
+                {(["any", "melee", "ranged"] as AcceptsType[]).map((v) => (
+                  <button key={v} type="button" onClick={() => setAcceptsType(v)}
+                    className={`flex-1 rounded-lg border py-2 text-sm font-medium transition-all ${
+                      acceptsType === v
+                        ? "border-gold-400 bg-gold-400/10 text-gold-400"
+                        : "border-dark-600 text-gray-400 hover:border-gray-500 hover:text-gray-300"
+                    }`}>
+                    {v === "any" ? "Any" : v === "melee" ? "Any Melee" : "Any Ranged"}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Preferred Matchups — champion multi-select */}
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <span className="label mb-0">I&apos;ll play against</span>
+                <span className="label mb-0">Preferred Matchups</span>
                 {vsChampions.length > 0 && (
                   <span className="text-xs text-gray-600">{vsChampions.length}/{MAX_VS}</span>
                 )}
@@ -1050,9 +1085,11 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
                 </div>
               )}
 
-              {vsChampions.length === 0 && (
-                <p className="text-xs text-gray-600 mt-1.5">Leave empty to accept any opponent</p>
-              )}
+              <p className="text-xs text-gray-600 mt-1.5">
+                {vsChampions.length === 0
+                  ? "Optional — leave empty to accept any opponent"
+                  : "Opponents playing one of these are shown first"}
+              </p>
             </div>
 
             <div>
@@ -1102,7 +1139,8 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
                 <div>
                   <p className="font-semibold text-white text-sm">You&apos;re available</p>
                   <p className="text-xs text-gray-400">
-                    {myChampData?.name} · {myBracketLabel} · {vsLabel}
+                    {myChampData?.name} · {myBracketLabel} · {acceptsLabel}
+                    {vsLabel && <> · Prefers: {vsLabel}</>}
                   </p>
                 </div>
               </div>
