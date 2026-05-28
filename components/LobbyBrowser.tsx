@@ -237,14 +237,14 @@ function GroupCard({
   group, userId, champions, canJoin, joiningSlot, onJoinSlot,
 }: {
   group:       LobbyGroup;
-  userId:      string;
+  userId:      string | null;
   champions:   Champion[];
   canJoin:     boolean;
   joiningSlot: SlotKey | null;
   onJoinSlot:  (slotKey: SlotKey, champId: string) => void;
 }) {
   const bracketLabel = ELO_BRACKETS.find((b) => b.value === group.eloBracket)?.label ?? group.eloBracket;
-  const mySlot       = userSlotIn(group, userId);
+  const mySlot       = userSlotIn(group, userId ?? "");
   const isFull       = groupIsFull(group);
   const [champPick,  setChampPick]  = useState<Partial<Record<SlotKey, string>>>({});
   const [pickingFor, setPickingFor] = useState<SlotKey | null>(null);
@@ -981,7 +981,7 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
 
         {/* 2v2: in a group */}
         {myGroup && (
-          <MyGroupPanel group={myGroup} userId={userId} onLeave={leaveGroup} leaving={leavingGroup} />
+          <MyGroupPanel group={myGroup} userId={userId!} onLeave={leaveGroup} leaving={leavingGroup} />
         )}
 
         {/* 2v2: create group form */}
@@ -1227,7 +1227,7 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
                 group={g}
                 userId={userId}
                 champions={champions}
-                canJoin={!isBusy && !userSlotIn(g, userId)}
+                canJoin={!!userId && !isBusy && !userSlotIn(g, userId ?? "")}
                 joiningSlot={joiningSlot}
                 onJoinSlot={(slotKey, champId) => joinGroupSlot(g.groupId, slotKey, champId)}
               />
