@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import Link from "next/link";
 
-const SESSION_KEY = "adblock_dismissed";
 
 // Two-signal detection — both must agree before we show the modal.
 // 1. Bait element: ad blockers hide divs with ad-like class names.
@@ -46,19 +45,15 @@ export default function AdBlockModal() {
   const [show, setShow] = useState(false);
 
   useEffect(() => {
-    if (sessionStorage.getItem(SESSION_KEY)) return;
-
-    // Wait 1.5 s after load so the page settles, then check
     const timer = setTimeout(async () => {
       const blocked = await detectAdBlock();
-      if (blocked && !sessionStorage.getItem(SESSION_KEY)) setShow(true);
+      if (blocked) setShow(true);
     }, 1500);
 
     return () => clearTimeout(timer);
   }, []);
 
   function dismiss() {
-    sessionStorage.setItem(SESSION_KEY, "1");
     setShow(false);
   }
 
@@ -101,7 +96,7 @@ export default function AdBlockModal() {
             Upgrade to Premium
           </Link>
           <button
-            onClick={dismiss}
+            onClick={() => setShow(false)}
             className="w-full bg-gray-700 hover:bg-gray-600 text-white font-medium rounded-lg py-2.5 text-sm transition-colors"
           >
             Whitelist Duelr
