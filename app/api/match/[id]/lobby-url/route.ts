@@ -16,11 +16,12 @@ const JOIN_URL_PATTERN = /^https:\/\/gg\.riotgames\.com\/LOL\?joinCode=[\w-]+$/;
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 
+  const { id } = await params;
   const body = await req.json().catch(() => null);
   const { joinUrl } = body ?? {};
 
@@ -29,7 +30,7 @@ export async function PATCH(
   }
 
   const match = await prisma.match.findUnique({
-    where: { id: params.id },
+    where: { id },
     select: { playerAId: true, playerBId: true, lobbyJoinUrl: true },
   });
 
@@ -48,7 +49,7 @@ export async function PATCH(
   }
 
   await prisma.match.update({
-    where: { id: params.id },
+    where: { id },
     data: { lobbyJoinUrl: joinUrl },
   });
 
@@ -56,7 +57,7 @@ export async function PATCH(
   const opponentId = callerId === playerAId ? playerBId : playerAId;
   await redis.publish(
     notificationChannel(opponentId),
-    JSON.stringify({ type: "lobby_url", matchId: params.id, joinUrl })
+    JSON.stringify({ type: "lobby_url", matchId: id, joinUrl })
   );
 
   return NextResponse.json({ ok: true, joinUrl });
