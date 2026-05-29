@@ -13,13 +13,14 @@ import { prisma } from "@/lib/prisma";
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 
+  const { id } = await params;
   const match = await prisma.match.findUnique({
-    where: { id: params.id },
+    where: { id },
     select: {
       id:           true,
       playerAId:    true,
