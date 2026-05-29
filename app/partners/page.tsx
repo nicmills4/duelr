@@ -40,6 +40,7 @@ export default async function PartnersPage() {
           userId={session?.userId ?? null}
           riotId={session?.user.riotId ?? null}
           isPremium={isPremium}
+          emailVerified={session?.user.emailVerified ?? false}
         />
       </AccountGate>
     </div>

@@ -434,12 +434,13 @@ function PostForm({
 // ── Main board ────────────────────────────────────────────────────────────────
 
 interface Props {
-  userId:    string | null;
-  riotId:    string | null;
-  isPremium: boolean;
+  userId:        string | null;
+  riotId:        string | null;
+  isPremium:     boolean;
+  emailVerified: boolean;
 }
 
-export default function PartnerBoard({ userId, riotId, isPremium }: Props) {
+export default function PartnerBoard({ userId, riotId, isPremium, emailVerified }: Props) {
   const [posts,      setPosts]      = useState<(PartnerPostPublic & { isOwn?: boolean })[]>([]);
   const [champions,  setChampions]  = useState<Champion[]>([]);
   const [loading,    setLoading]    = useState(true);
@@ -520,7 +521,16 @@ export default function PartnerBoard({ userId, riotId, isPremium }: Props) {
             )}
           </p>
 
-          {isPremium ? (
+          {!emailVerified ? (
+            /* ── Unverified email: block posting ── */
+            <a
+              href="/settings"
+              className="flex items-center gap-2 rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-4 py-2 text-sm text-yellow-300 hover:bg-yellow-500/20 hover:border-yellow-500/50 transition-colors"
+            >
+              <CheckCircle2 className="w-4 h-4 text-yellow-400" />
+              Verify your email to post
+            </a>
+          ) : isPremium ? (
             /* ── Premium: show post / edit / delete controls ── */
             myPost ? (
               <div className="flex items-center gap-2">

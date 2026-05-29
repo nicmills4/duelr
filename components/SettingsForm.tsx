@@ -186,13 +186,15 @@ function EmailSection({ currentEmail }: { currentEmail: string | null }) {
 
 // ─── Password section ─────────────────────────────────────────────────────────
 
-function PasswordSection() {
-  const [current,  setCurrent]  = useState("");
-  const [next,     setNext]     = useState("");
-  const [confirm,  setConfirm]  = useState("");
-  const [loading,  setLoading]  = useState(false);
-  const [success,  setSuccess]  = useState("");
-  const [error,    setError]    = useState("");
+function PasswordSection({ email }: { email: string | null }) {
+  const [current,       setCurrent]       = useState("");
+  const [next,          setNext]          = useState("");
+  const [confirm,       setConfirm]       = useState("");
+  const [loading,       setLoading]       = useState(false);
+  const [success,       setSuccess]       = useState("");
+  const [error,         setError]         = useState("");
+  const [resetSending,  setResetSending]  = useState(false);
+  const [resetSent,     setResetSent]     = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -215,10 +217,34 @@ function PasswordSection() {
     }
   }
 
+  async function sendReset() {
+    if (!email || resetSending || resetSent) return;
+    setResetSending(true);
+    await fetch("/api/auth/forgot-password", {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ email }),
+    });
+    setResetSending(false);
+    setResetSent(true);
+  }
+
   return (
     <form onSubmit={submit} className="space-y-4">
       <div>
-        <label className="label">Current Password</label>
+        <div className="flex items-center justify-between mb-1">
+          <label className="label !mb-0">Current Password</label>
+          {email && (
+            <button
+              type="button"
+              onClick={sendReset}
+              disabled={resetSending || resetSent}
+              className="text-xs text-amber-400 hover:underline disabled:opacity-60 disabled:no-underline"
+            >
+              {resetSent ? "Reset link sent!" : resetSending ? "Sending…" : "Forgot password?"}
+            </button>
+          )}
+        </div>
         <input
           type="password"
           className={inp}
@@ -329,7 +355,7 @@ export default function SettingsForm({ riotId, region, email, accountType, email
           title="Password"
           description="Change your login password"
         >
-          <PasswordSection />
+          <PasswordSection email={email} />
         </Section>
       )}
 

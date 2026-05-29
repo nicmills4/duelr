@@ -82,6 +82,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Full account required" }, { status: 403 });
   if (PARTNERS_REQUIRE_PREMIUM && !session.user.isPremium)
     return NextResponse.json({ error: "Premium subscription required" }, { status: 403 });
+  if (!session.user.emailVerified)
+    return NextResponse.json({ error: "Please verify your email before posting." }, { status: 403 });
 
   const body = await req.json().catch(() => null);
   if (!body) return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
