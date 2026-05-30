@@ -282,7 +282,7 @@ export default function LobbyPage() {
     setSubmitting(true)
     setError('')
 
-    const { ok } = await api.post<{ expiresAt?: number }>('/api/lobby/available', {
+    const result = await api.post<{ expiresAt?: number; error?: string; message?: string }>('/api/lobby/available', {
       myChampion:  champ.id,
       champName:   champ.name,
       champImage:  champ.imageUrl,
@@ -291,12 +291,14 @@ export default function LobbyPage() {
       vsChampions: vsChampIds,
     })
 
-    if (ok) {
+    if (result.ok) {
       setPhase({ kind: 'available', expiresAt: Date.now() + 3600_000 })
       saveForm(myChampId, acceptsType, vsChampIds, eloBracket)
       fetchPlayers()
     } else {
-      setError('Failed to mark available. Please try again.')
+      const msg = result.data?.error ?? result.data?.message
+      console.error('[Lobby] goAvailable failed — status:', result.status, 'body:', result.data)
+      setError(msg ?? 'Failed to mark available. Please try again.')
     }
     setSubmitting(false)
   }
@@ -929,7 +931,7 @@ function VsChampPicker({
                      text-gray-100 placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-gold-400"
         />
       </div>
-      <div className="grid grid-cols-6 gap-0.5 p-1.5 max-h-36 overflow-y-auto">
+      <div className="grid grid-cols-6 gap-0.5 p-1.5 max-h-72 overflow-y-auto">
         {filtered.map((c) => {
           const isSelected = selected.includes(c.id)
           return (

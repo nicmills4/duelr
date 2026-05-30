@@ -1,5 +1,6 @@
 import { app, shell, BrowserWindow, ipcMain, session, safeStorage } from 'electron'
 import { join } from 'path'
+import fs from 'fs'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { watchLockfile } from './lcu/lockfile'
 import { lcuGet } from './lcu/client'
@@ -30,28 +31,72 @@ interface RankedStats {
   queueMap?: Record<string, { tier: string; division: string; leaguePoints: number }>
 }
 
-async function onLcuConnect(creds: LcuCreds) {
+async function onLcuConnect(creds: LcuCreds, lockfilePath: string | null = null) {
+  console.log('[Main] LCU connected — port:', creds.port)
   currentLcuCreds = creds
-  // Fetch summoner info + rank to show in status bar
-  let summonerName = ''
-  let rankLabel = ''
 
-  try {
-    const summoner = await lcuGet<SummonerInfo>('/lol-summoner/v1/current-summoner', creds)
-    summonerName = summoner?.displayName ?? summoner?.internalName ?? ''
-  } catch { /* ignore */ }
-
-  try {
-    const ranked = await lcuGet<RankedStats>('/lol-ranked/v1/current-ranked-stats', creds)
-    const solo = ranked?.queueMap?.['RANKED_SOLO_5x5']
-    if (solo?.tier) {
-      rankLabel = `${solo.tier} ${solo.division ?? ''} ${solo.leaguePoints ?? 0} LP`.trim()
-    }
-  } catch { /* ignore */ }
-
-  lastLcuStatus = { connected: true, summonerName, rankLabel }
+  // ── Push "connected" immediately so the UI updates without waiting for API calls ──
+  lastLcuStatus = { connected: true, summonerName: '', rankLabel: '' }
   mainWindow?.webContents.send('lcu:status', lastLcuStatus)
   setTrayLcuConnected(true)
+
+  // ── Fetch summoner info + rank with retries (LCU HTTP server may not be ready yet) ──
+  const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
+
+  // Check lockfile mtime: if it's older than 60s League was already running — poll immediately.
+  // Otherwise wait 20s for the HTTP server to finish initialising.
+  let initialDelay = 10000
+  if (lockfilePath) {
+    try {
+      const { mtimeMs } = fs.statSync(lockfilePath)
+      const ageMs = Date.now() - mtimeMs
+      console.log(`[Main] Lockfile age: ${Math.round(ageMs / 1000)}s`)
+      if (ageMs > 60_000) initialDelay = 0
+    } catch { /* can't stat — use default */ }
+  }
+
+  if (initialDelay > 0) {
+    console.log(`[Main] Waiting ${initialDelay / 1000}s for LCU HTTP server to initialise…`)
+    await delay(initialDelay)
+    if (currentLcuCreds?.port !== creds.port) return  // disconnected while waiting
+  }
+
+  async function fetchWithRetry<T>(path: string, retries = 6, intervalMs = 10000): Promise<T | null> {
+
+    for (let i = 0; i < retries; i++) {
+      // If we've disconnected while waiting, abort
+      if (currentLcuCreds?.port !== creds.port) return null
+      try {
+        return await lcuGet<T>(path, creds)
+      } catch (e: any) {
+        if (e?.code === 'ECONNREFUSED' && i < retries - 1) {
+          console.log(`[Main] LCU not ready yet (attempt ${i + 1}/${retries}), retrying in ${intervalMs / 1000}s…`)
+          await delay(intervalMs)
+        } else {
+          console.error(`[Main] fetch failed (${path}):`, e?.message ?? e)
+          return null
+        }
+      }
+    }
+    return null
+  }
+
+  const summoner = await fetchWithRetry<SummonerInfo>('/lol-summoner/v1/current-summoner')
+  const summonerName = summoner?.displayName ?? summoner?.internalName ?? ''
+
+  const ranked = await fetchWithRetry<RankedStats>('/lol-ranked/v1/current-ranked-stats')
+  const solo = ranked?.queueMap?.['RANKED_SOLO_5x5']
+  const rankLabel = solo?.tier
+    ? `${solo.tier} ${solo.division ?? ''} ${solo.leaguePoints ?? 0} LP`.trim()
+    : ''
+
+  // Guard: don't overwrite status if League disconnected while we were waiting
+  if (currentLcuCreds?.port !== creds.port) return
+
+  // ── Update with full summoner info once we have it ──
+  lastLcuStatus = { connected: true, summonerName, rankLabel }
+  console.log('[Main] sending enriched lcu:status — summoner:', summonerName, 'rank:', rankLabel)
+  mainWindow?.webContents.send('lcu:status', lastLcuStatus)
 
   // Connect event stream — champion detection + phase tracking
   stopLcuEvents?.()
@@ -79,6 +124,7 @@ async function onLcuConnect(creds: LcuCreds) {
 }
 
 function onLcuDisconnect() {
+  console.log('[Main] LCU disconnected')
   currentLcuCreds = null
   stopLcuEvents?.()
   stopLcuEvents = null
@@ -130,11 +176,20 @@ function setupCorsOverride(ses: Electron.Session) {
       // Strip SameSite=Lax/Strict from session cookie so Chromium sends it on
       // cross-origin requests from the Electron renderer (localhost or file://).
       if (headers['set-cookie']) {
-        headers['set-cookie'] = headers['set-cookie'].map((c) =>
-          c
-            .replace(/;\s*SameSite=Lax/gi, '')
-            .replace(/;\s*SameSite=Strict/gi, '')
-        )
+        headers['set-cookie'] = headers['set-cookie'].map((c) => {
+          // Replace SameSite=Lax/Strict with SameSite=None so Chromium sends
+          // the session cookie on cross-origin POST requests from Electron.
+          // Chrome 80+ defaults to Lax when SameSite is absent, so stripping
+          // it alone doesn't help — we must explicitly set None.
+          let cookie = c
+            .replace(/;\s*SameSite=Lax/gi,    '; SameSite=None')
+            .replace(/;\s*SameSite=Strict/gi,  '; SameSite=None')
+          // Ensure Secure is present (required for SameSite=None)
+          if (/SameSite=None/i.test(cookie) && !/;\s*Secure/i.test(cookie)) {
+            cookie += '; Secure'
+          }
+          return cookie
+        })
       }
     }
     callback({ responseHeaders: headers })
@@ -235,9 +290,9 @@ function setupIpc() {
 function createWindow(): BrowserWindow {
   mainWindow = new BrowserWindow({
     width: 1100,
-    height: 780,
+    height: 1150,
     minWidth: 900,
-    minHeight: 600,
+    minHeight: 900,
     show: false,
     backgroundColor: '#050A14',
     frame: false,

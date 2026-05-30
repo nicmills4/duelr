@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
+import { LcuProvider } from './context/LcuContext'
 import NavBar from './components/NavBar'
 import LoginPage from './pages/LoginPage'
 import LobbyPage from './pages/LobbyPage'
@@ -46,7 +47,9 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <AppRoutes />
+        <LcuProvider>
+          <AppRoutes />
+        </LcuProvider>
       </AuthProvider>
     </BrowserRouter>
   )

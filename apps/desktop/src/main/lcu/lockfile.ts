@@ -46,7 +46,7 @@ function candidateDirs(): string[] {
 // Fastest — no shell needed. Works as long as League is installed in a
 // known location.
 
-function tryLockfileScan(): { creds: LcuCreds; installDir: string } | null {
+function tryLockfileScan(): { creds: LcuCreds; installDir: string; lockfilePath: string } | null {
   for (const dir of candidateDirs()) {
     const lockfilePath = path.join(dir, 'lockfile')
     try {
@@ -59,7 +59,7 @@ function tryLockfileScan(): { creds: LcuCreds; installDir: string } | null {
       const creds = parseLockfile(content)
       if (creds) {
         console.log('[LCU] Parsed OK — port:', creds.port)
-        return { creds, installDir: dir }
+        return { creds, installDir: dir, lockfilePath }
       } else {
         console.log('[LCU] parseLockfile returned null')
       }
@@ -193,7 +193,7 @@ function queryProcess(): { creds: LcuCreds; installDir: string | null } | null {
 // ── Main export ───────────────────────────────────────────────────────────────
 
 export function watchLockfile(
-  onConnect:    (creds: LcuCreds) => void,
+  onConnect:    (creds: LcuCreds, lockfilePath: string | null) => void,
   onDisconnect: () => void
 ): () => void {
 
@@ -206,14 +206,22 @@ export function watchLockfile(
     if (!result) return
     connected  = true
     installDir = result.installDir
-    if (result.installDir && !watcher.getWatched()[result.installDir]) {
-      watcher.add(result.installDir)
-    }
-    onConnect(result.creds)
+    try {
+      const watched = watcher.getWatched()
+      if (result.installDir && !watched[result.installDir]) {
+        watcher.add(result.installDir)
+      }
+    } catch { /* ignore watcher errors */ }
+    const lockfilePath = 'lockfilePath' in result ? (result as any).lockfilePath as string : null
+    console.log('[LCU] Calling onConnect — port:', result.creds.port)
+    Promise.resolve(onConnect(result.creds, lockfilePath)).catch((e) =>
+      console.error('[LCU] onConnect threw:', e)
+    )
   }
 
   function handleDisconnect() {
     if (!connected) return
+    console.log('[LCU] handleDisconnect — calling onDisconnect callback')
     connected  = false
     installDir = null
     onDisconnect()
@@ -229,7 +237,7 @@ export function watchLockfile(
       try { return fs.existsSync(path.join(d, 'lockfile')) } catch { return false }
     })
     if (!stillUp) {
-      console.log('[LCU] Lockfile gone — League disconnected')
+      console.log('[LCU] Lockfile gone — disconnecting')
       handleDisconnect()
     }
   }
@@ -239,7 +247,8 @@ export function watchLockfile(
   console.log('[LCU] Initial queryProcess:', initial ? `connected (port ${initial.creds.port})` : 'null')
   if (initial) {
     connected = true
-    setImmediate(() => onConnect(initial.creds))
+    const initialLockfilePath = 'lockfilePath' in initial ? (initial as any).lockfilePath as string : null
+    setImmediate(() => onConnect(initial.creds, initialLockfilePath))
   }
 
   // ── Watch lockfile directories ────────────────────────────────────────────
@@ -259,7 +268,7 @@ export function watchLockfile(
     if (connected) return
     try {
       const creds = parseLockfile(fs.readFileSync(filePath, 'utf-8'))
-      if (creds) { connected = true; onConnect(creds) }
+      if (creds) { connected = true; onConnect(creds, filePath) }
     } catch { /* ignore */ }
   }
 

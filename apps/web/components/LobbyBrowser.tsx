@@ -448,12 +448,21 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
   const outgoingCountdown = useCountdown(outgoing?.expiresAt ?? null);
   const incomingCountdown = useCountdown(incoming?.expiresAt ?? null);
 
+  // Expire challenges via direct timeout — NOT by watching the countdown hit 0,
+  // because useCountdown initialises to 0 which would wipe the challenge immediately
+  // on the first render before the interval has a chance to tick.
   useEffect(() => {
-    if (outgoing && outgoingCountdown === 0) setOutgoing(null);
-  }, [outgoing, outgoingCountdown]);
+    if (!outgoing) return;
+    const ms = Math.max(0, outgoing.expiresAt - Date.now());
+    const t = setTimeout(() => setOutgoing(null), ms);
+    return () => clearTimeout(t);
+  }, [outgoing?.challengeId]);
   useEffect(() => {
-    if (incoming && incomingCountdown === 0) setIncoming(null);
-  }, [incoming, incomingCountdown]);
+    if (!incoming) return;
+    const ms = Math.max(0, incoming.expiresAt - Date.now());
+    const t = setTimeout(() => setIncoming(null), ms);
+    return () => clearTimeout(t);
+  }, [incoming?.challengeId]);
 
   // Fetch champion list
   useEffect(() => {

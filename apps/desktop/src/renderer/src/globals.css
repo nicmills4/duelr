@@ -16,13 +16,18 @@
   }
 
   ::-webkit-scrollbar {
-    width: 5px;
+    width: 10px;
   }
   ::-webkit-scrollbar-track {
-    @apply bg-dark-800;
+    background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    @apply bg-gold-600 rounded-full;
+    @apply bg-white/20 rounded-full;
+    border: 3px solid transparent;
+    background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-white/35;
   }
 
   /* Electron drag region for custom titlebar-style dragging */
