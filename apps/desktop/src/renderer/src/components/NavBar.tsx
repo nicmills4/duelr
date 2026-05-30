@@ -1,7 +1,7 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import LcuStatusBar from './LcuStatusBar'
-import { LogOut, Loader2, Swords, Minus, Square, X } from 'lucide-react'
+import { LogOut, Loader2, Swords, Minus, Square, X, Settings } from 'lucide-react'
 import { useState } from 'react'
 
 export default function NavBar() {
@@ -48,6 +48,18 @@ export default function NavBar() {
                 <span className="text-xs text-gray-500 hidden sm:block max-w-[120px] truncate">
                   {user.riotId}
                 </span>
+                <div className="w-px h-4 bg-white/10" />
+                <Link
+                  to="/settings"
+                  className={`flex items-center justify-center w-7 h-7 rounded-md transition-colors ${
+                    location.pathname === '/settings'
+                      ? 'text-gold-400 bg-white/5'
+                      : 'text-gray-500 hover:text-gray-200 hover:bg-white/5'
+                  }`}
+                  title="Settings"
+                >
+                  <Settings className="w-3.5 h-3.5" />
+                </Link>
                 <div className="w-px h-4 bg-white/10" />
                 <button
                   onClick={handleLogout}
