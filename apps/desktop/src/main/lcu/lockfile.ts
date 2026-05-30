@@ -34,11 +34,18 @@ function queryProcess(): { creds: LcuCreds; installDir: string | null } | null {
 
     if (!out) return null
 
-    const port       = out.match(/--app-port=(\d+)/)?.[1]
-    const password   = out.match(/--remoting-auth-token=([\w-]+)/)?.[1]
-    const pid        = out.match(/--app-pid=(\d+)/)?.[1]
-    // "--install-directory=C:\Riot Games\League of Legends\" (may have quotes)
-    const installDir = out.match(/--install-directory=["']?([^"'\s]+)/)?.[1]?.replace(/\\$/, '') ?? null
+    const port     = out.match(/--app-port=(\d+)/)?.[1]
+    const password = out.match(/--remoting-auth-token=([\w-]+)/)?.[1]
+    const pid      = out.match(/--app-pid=(\d+)/)?.[1]
+
+    // Install dir may be quoted and contain spaces:
+    //   --install-directory="C:\Riot Games\League of Legends"
+    //   --install-directory=C:\Riot\LeagueOfLegends
+    const installDirMatch =
+      out.match(/--install-directory="([^"]+)"/) ??
+      out.match(/--install-directory='([^']+)'/) ??
+      out.match(/--install-directory=(\S+)/)
+    const installDir = installDirMatch?.[1]?.replace(/[\\]+$/, '') ?? null
 
     if (!port || !password) return null
 
@@ -89,16 +96,36 @@ export function watchLockfile(
   onDisconnect: () => void
 ): () => void {
 
-  // ── If League is already running: read creds from its process args ────────
-  const result = queryProcess()
-  console.log('[LCU] queryProcess result:', result)
-  if (result) setImmediate(() => onConnect(result.creds))
+  let connected = false
 
-  // ── Watch lockfile directories for future League starts / stops ───────────
-  // Include the live install dir (if found) so the unlink event fires
-  // when League exits, even if it's installed at a non-default path.
+  function tryConnect() {
+    if (connected) return
+    const result = queryProcess()
+    if (!result) return
+    connected = true
+    // Restart the watcher to include the actual install dir now that we know it
+    if (result.installDir && !watcher.getWatched()[result.installDir]) {
+      watcher.add(result.installDir)
+    }
+    onConnect(result.creds)
+  }
+
+  function handleDisconnect() {
+    if (!connected) return
+    connected = false
+    onDisconnect()
+  }
+
+  // ── If League is already running: read creds from its process args ─────────
+  const initial = queryProcess()
+  if (initial) {
+    connected = true
+    setImmediate(() => onConnect(initial.creds))
+  }
+
+  // ── Watch lockfile directories for future League starts / stops ────────────
   const dirs = [...new Set([
-    ...(result?.installDir ? [result.installDir] : []),
+    ...(initial?.installDir ? [initial.installDir] : []),
     ...watchDirs(),
   ])]
 
@@ -110,16 +137,26 @@ export function watchLockfile(
   })
 
   function tryRead(filePath: string) {
+    if (connected) return
     try {
       const creds = parseLockfile(fs.readFileSync(filePath, 'utf-8'))
-      if (creds) onConnect(creds)
+      if (creds) { connected = true; onConnect(creds) }
     } catch { /* ignore */ }
   }
 
   watcher.on('add',    (f) => { if (path.basename(f) === 'lockfile') tryRead(f) })
   watcher.on('change', (f) => { if (path.basename(f) === 'lockfile') tryRead(f) })
-  watcher.on('unlink', (f) => { if (path.basename(f) === 'lockfile') onDisconnect() })
+  watcher.on('unlink', (f) => { if (path.basename(f) === 'lockfile') handleDisconnect() })
   watcher.on('error',  () => { /* ignore */ })
 
-  return () => watcher.close()
+  // ── Polling fallback — catches League starts the watcher misses ────────────
+  // Runs every 5s while disconnected; stops polling once connected.
+  const pollTimer = setInterval(() => {
+    if (!connected) tryConnect()
+  }, 5000)
+
+  return () => {
+    clearInterval(pollTimer)
+    watcher.close()
+  }
 }
