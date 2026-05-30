@@ -8,7 +8,6 @@ import { createLobbyAndGetJoinUrl } from './lcu/lobby'
 import { getEndOfGameResult } from './lcu/end-of-game'
 import { createTray } from './tray'
 import { showNotification } from './notifications'
-import * as rpc from './discord-rpc'
 import type { LcuCreds } from './lcu/lockfile'
 
 const API_ORIGIN = 'https://playduelr.gg'
@@ -52,14 +51,12 @@ async function onLcuConnect(creds: LcuCreds) {
 
   lastLcuStatus = { connected: true, summonerName, rankLabel }
   mainWindow?.webContents.send('lcu:status', lastLcuStatus)
-  rpc.setLcuConnected(summonerName)
 
   // Connect event stream — champion detection + phase tracking
   stopLcuEvents?.()
   stopLcuEvents = connectLcuEvents(creds, {
     onPhase: (phase) => {
       mainWindow?.webContents.send('lcu:phase', phase)
-      rpc.setPhase(phase)
     },
     onChampion: (ddragKey) => {
       mainWindow?.webContents.send('lcu:champion', ddragKey)
@@ -83,7 +80,6 @@ function onLcuDisconnect() {
   lastLcuStatus = { connected: false }
   mainWindow?.webContents.send('lcu:status', lastLcuStatus)
   mainWindow?.webContents.send('lcu:champion', null)
-  rpc.setLcuDisconnected()
 }
 
 async function handleEndOfGame() {
@@ -186,15 +182,8 @@ function setupIpc() {
   })
 
   // Renderer tells main which match is active so EOG can auto-report it
-  // payload: { matchId, opponentRiotId? } or null to clear
-  ipcMain.handle('match:setActive', (_event, payload: { matchId: string; opponentRiotId?: string } | null) => {
-    if (payload && typeof payload.matchId === 'string') {
-      activeMatchId = payload.matchId
-      rpc.setOpponent(payload.opponentRiotId ?? null)
-    } else {
-      activeMatchId = null
-      rpc.setOpponent(null)
-    }
+  ipcMain.handle('match:setActive', (_event, matchId: string | null) => {
+    activeMatchId = typeof matchId === 'string' ? matchId : null
   })
 
   // Window controls (used by custom title bar in renderer)
@@ -303,9 +292,6 @@ app.whenReady().then(() => {
   // System tray
   createTray(win)
 
-  // Start Discord Rich Presence
-  rpc.connect()
-
   // Start watching for League client
   stopLockfileWatch = watchLockfile(onLcuConnect, onLcuDisconnect)
 
@@ -324,5 +310,4 @@ app.on('before-quit', () => {
   ;(app as any).isQuitting = true
   stopLcuEvents?.()
   stopLockfileWatch?.()
-  rpc.disconnect()
 })

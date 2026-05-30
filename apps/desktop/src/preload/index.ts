@@ -28,7 +28,7 @@ export interface DuelrAPI {
   }
   match: {
     /** Tell main process which match is currently active so EOG can auto-report it. */
-    setActive: (payload: { matchId: string; opponentRiotId?: string } | null) => Promise<void>
+    setActive: (matchId: string | null) => Promise<void>
   }
   discord: {
     joinVoice: (url: string) => Promise<void>
@@ -82,8 +82,7 @@ contextBridge.exposeInMainWorld('duelr', {
   },
 
   match: {
-    setActive: (payload: { matchId: string; opponentRiotId?: string } | null) =>
-      ipcRenderer.invoke('match:setActive', payload),
+    setActive: (matchId: string | null) => ipcRenderer.invoke('match:setActive', matchId),
   },
 
   discord: {
