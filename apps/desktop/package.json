@@ -12,6 +12,43 @@
     "dist:win": "npm run build && electron-builder --win",
     "dist:mac": "npm run build && electron-builder --mac"
   },
+  "build": {
+    "appId": "gg.playduelr.desktop",
+    "productName": "Duelr",
+    "copyright": "Copyright © 2025 Duelr",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "out/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "resources/",
+        "to": "resources/"
+      }
+    ],
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ],
+      "icon": "resources/tray-icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "resources/tray-icon.png",
+      "shortcutName": "Duelr"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "resources/tray-icon.png",
+      "category": "public.app-category.games"
+    },
+    "publish": null
+  },
   "devDependencies": {
     "@electron-toolkit/tsconfig": "^1.0.1",
     "@types/node": "^20.14.8",

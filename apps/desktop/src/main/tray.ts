@@ -154,7 +154,9 @@ function stopFlash() {
 
 export function createTray(mainWin: BrowserWindow): void {
   win = mainWin
-  const resourcesDir = path.join(__dirname, '../../resources')
+  const resourcesDir = app.isPackaged
+    ? path.join(process.resourcesPath, 'resources')
+    : path.join(__dirname, '../../resources')
   loadIcons(resourcesDir)
 
   tray = new Tray(normalIcon)
