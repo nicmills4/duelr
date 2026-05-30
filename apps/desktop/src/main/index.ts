@@ -186,6 +186,14 @@ function setupIpc() {
     activeMatchId = typeof matchId === 'string' ? matchId : null
   })
 
+  // Window controls (used by custom title bar in renderer)
+  ipcMain.on('window:minimize', () => mainWindow?.minimize())
+  ipcMain.on('window:maximize', () => {
+    if (mainWindow?.isMaximized()) mainWindow.unmaximize()
+    else mainWindow?.maximize()
+  })
+  ipcMain.on('window:close', () => mainWindow?.close())
+
   // Create a 1v1 custom lobby via LCU and return the shareable join URL
   ipcMain.handle('lcu:createLobby', async (): Promise<string | null> => {
     if (!currentLcuCreds) return null
@@ -211,19 +219,7 @@ function createWindow(): BrowserWindow {
     minHeight: 600,
     show: false,
     backgroundColor: '#050A14',
-    titleBarStyle: 'hidden',
-    // On Windows: overlay the native traffic-light controls, styled to match the header
-    ...(process.platform === 'win32' && {
-      titleBarOverlay: {
-        color: '#0C1528',       // dark-700 — matches NavBar bg
-        symbolColor: '#9CA3AF', // gray-400
-        height: 44,             // matches h-11 nav row
-      },
-    }),
-    // On macOS: inset traffic lights into the header
-    ...(process.platform === 'darwin' && {
-      trafficLightPosition: { x: 12, y: 14 },
-    }),
+    frame: false,
     autoHideMenuBar: true,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),

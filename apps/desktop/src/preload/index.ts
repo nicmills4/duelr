@@ -43,6 +43,11 @@ export interface DuelrAPI {
     /** Decrypt a base64 ciphertext previously produced by encrypt. */
     decrypt: (ciphertext: string) => Promise<string>
   }
+  window: {
+    minimize: () => void
+    maximize: () => void
+    close: () => void
+  }
 }
 
 // ── contextBridge ─────────────────────────────────────────────────────────────
@@ -93,5 +98,11 @@ contextBridge.exposeInMainWorld('duelr', {
   safeStorage: {
     encrypt: (text: string) => ipcRenderer.invoke('safe-storage:encrypt', text),
     decrypt: (ciphertext: string) => ipcRenderer.invoke('safe-storage:decrypt', ciphertext),
+  },
+
+  window: {
+    minimize: () => ipcRenderer.send('window:minimize'),
+    maximize: () => ipcRenderer.send('window:maximize'),
+    close:    () => ipcRenderer.send('window:close'),
   },
 } satisfies DuelrAPI)
