@@ -17,7 +17,8 @@ module.exports = {
         },
       },
       fontFamily: {
-        sans: ['system-ui', 'ui-sans-serif', 'sans-serif'],
+        sans:    ['"Exo 2"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        display: ['"Bebas Neue"', 'sans-serif'],
       },
     },
   },

@@ -26,7 +26,7 @@ export default function NavBar() {
           <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-gold-400/10 group-hover:bg-gold-400/20 transition-colors">
             <Swords className="w-4 h-4 text-gold-400" />
           </div>
-          <span className="font-bold text-white tracking-wide text-sm">
+          <span className="font-display text-lg tracking-wide text-white">
             Duel<span className="text-gold-400">r</span>
           </span>
         </Link>
