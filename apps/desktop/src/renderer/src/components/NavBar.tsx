@@ -61,11 +61,7 @@ export default function NavBar() {
                   <span className="hidden sm:inline">Log out</span>
                 </button>
               </>
-            ) : (
-              <Link to="/login" className="btn-secondary text-xs px-3 py-1.5">
-                Log in
-              </Link>
-            )}
+            ) : null}
           </div>
 
           {/* Window controls */}
