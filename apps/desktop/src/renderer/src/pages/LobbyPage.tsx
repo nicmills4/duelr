@@ -132,8 +132,14 @@ export default function LobbyPage() {
   // ── Register active match with main process for EOG auto-reporting ─────────
 
   useEffect(() => {
-    const matchId = phase.kind === 'matched' ? phase.matchId : null
-    window.duelr.match.setActive(matchId)
+    if (phase.kind === 'matched') {
+      window.duelr.match.setActive({
+        matchId: phase.matchId,
+        opponentRiotId: phase.opponentRiotId,
+      })
+    } else {
+      window.duelr.match.setActive(null)
+    }
   // Depend on the actual matchId string (null when not in matched phase)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase.kind === 'matched' ? phase.matchId : null])
