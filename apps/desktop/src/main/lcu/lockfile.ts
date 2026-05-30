@@ -197,13 +197,15 @@ export function watchLockfile(
   onDisconnect: () => void
 ): () => void {
 
-  let connected = false
+  let connected   = false
+  let installDir: string | null = null  // dir where lockfile was last found
 
   function tryConnect() {
     if (connected) return
     const result = queryProcess()
     if (!result) return
-    connected = true
+    connected  = true
+    installDir = result.installDir
     if (result.installDir && !watcher.getWatched()[result.installDir]) {
       watcher.add(result.installDir)
     }
@@ -212,8 +214,24 @@ export function watchLockfile(
 
   function handleDisconnect() {
     if (!connected) return
-    connected = false
+    connected  = false
+    installDir = null
     onDisconnect()
+  }
+
+  function checkStillConnected() {
+    if (!connected) return
+    // If we know which dir to check, verify the lockfile still exists there
+    const dirsToCheck = installDir
+      ? [installDir, ...candidateDirs()]
+      : candidateDirs()
+    const stillUp = dirsToCheck.some(d => {
+      try { return fs.existsSync(path.join(d, 'lockfile')) } catch { return false }
+    })
+    if (!stillUp) {
+      console.log('[LCU] Lockfile gone — League disconnected')
+      handleDisconnect()
+    }
   }
 
   // ── If League is already running ──────────────────────────────────────────
@@ -250,9 +268,10 @@ export function watchLockfile(
   watcher.on('unlink', (f) => { if (path.basename(f) === 'lockfile') handleDisconnect() })
   watcher.on('error',  (e) => { console.error('[LCU] watcher error:', e) })
 
-  // ── Polling fallback every 5s while disconnected ──────────────────────────
+  // ── Poll every 5s: connect if disconnected, disconnect if lockfile gone ───
   const pollTimer = setInterval(() => {
     if (!connected) tryConnect()
+    else checkStillConnected()
   }, 5000)
 
   return () => {
