@@ -17,6 +17,7 @@ export interface DuelrAPI {
   lcu: {
     onStatus: (cb: (status: LcuStatus) => void) => void
     offStatus: () => void
+    getStatus: () => Promise<LcuStatus>
     onChampion: (cb: (ddragKey: string | null) => void) => void
     offChampion: () => void
     onPhase: (cb: (phase: string) => void) => void
@@ -62,6 +63,7 @@ contextBridge.exposeInMainWorld('duelr', {
       ipcRenderer.on('lcu:status', (_, status: LcuStatus) => cb(status))
     },
     offStatus: () => ipcRenderer.removeAllListeners('lcu:status'),
+    getStatus: () => ipcRenderer.invoke('lcu:getStatus'),
 
     onChampion: (cb: (ddragKey: string | null) => void) => {
       ipcRenderer.removeAllListeners('lcu:champion')

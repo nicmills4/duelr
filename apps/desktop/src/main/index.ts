@@ -192,6 +192,9 @@ function setupIpc() {
     activeMatchId = typeof matchId === 'string' ? matchId : null
   })
 
+  // Renderer pulls current LCU status on mount (avoids did-finish-load race)
+  ipcMain.handle('lcu:getStatus', () => lastLcuStatus)
+
   // Renderer pushes Duelr lobby phase so the tray menu + tooltip stay in sync
   ipcMain.on('tray:setStatus', (_event, payload: { kind: string; opponent?: string; since?: number }) => {
     switch (payload.kind) {

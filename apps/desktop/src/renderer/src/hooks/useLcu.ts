@@ -21,13 +21,25 @@ export function useLcu(): LcuState {
   const [state, setState] = useState<LcuState>(defaultState)
 
   useEffect(() => {
+    // Pull current status immediately on mount — avoids the race condition
+    // where did-finish-load fires before React has registered its listener.
+    window.duelr.lcu.getStatus().then((status: LcuStatus) => {
+      setState((prev) => ({
+        ...prev,
+        connected: status.connected,
+        summonerName: status.summonerName ?? '',
+        rankLabel: status.rankLabel ?? '',
+        ...(status.connected ? {} : { phase: 'None', lockedChampion: null }),
+      }))
+    })
+
+    // Then keep listening for future changes
     window.duelr.lcu.onStatus((status: LcuStatus) => {
       setState((prev) => ({
         ...prev,
         connected: status.connected,
         summonerName: status.summonerName ?? '',
         rankLabel: status.rankLabel ?? '',
-        // Reset phase/champion on disconnect
         ...(status.connected ? {} : { phase: 'None', lockedChampion: null }),
       }))
     })
