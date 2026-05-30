@@ -1,0 +1,13 @@
+node_modules
+out
+dist
+
+# Logs
+*.log
+
+# Editor
+.vscode
+.idea
+
+# macOS
+.DS_Store
