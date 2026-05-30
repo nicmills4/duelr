@@ -50,12 +50,42 @@ function tryLockfileScan(): { creds: LcuCreds; installDir: string } | null {
   for (const dir of candidateDirs()) {
     const lockfilePath = path.join(dir, 'lockfile')
     try {
-      if (!fs.existsSync(lockfilePath)) continue
-      const creds = parseLockfile(fs.readFileSync(lockfilePath, 'utf-8'))
+      const exists = fs.existsSync(lockfilePath)
+      console.log('[LCU] Scan', lockfilePath, '→ exists:', exists)
+      if (!exists) continue
+
+      const content = fs.readFileSync(lockfilePath, 'utf-8')
+      console.log('[LCU] Content length:', content.length, 'raw:', JSON.stringify(content.slice(0, 80)))
+      const creds = parseLockfile(content)
       if (creds) {
-        console.log('[LCU] Found lockfile at:', lockfilePath)
+        console.log('[LCU] Parsed OK — port:', creds.port)
         return { creds, installDir: dir }
+      } else {
+        console.log('[LCU] parseLockfile returned null')
       }
+    } catch (e) {
+      console.error('[LCU] Error reading', lockfilePath, e)
+    }
+  }
+  return null
+}
+
+// ── Method 1b: PowerShell Get-Content (fallback if fs is blocked) ─────────────
+
+function tryPowerShellRead(): { creds: LcuCreds; installDir: string } | null {
+  if (process.platform !== 'win32') return null
+  for (const dir of candidateDirs()) {
+    const lockfilePath = path.join(dir, 'lockfile')
+    try {
+      const content = execFileSync(
+        'powershell.exe',
+        ['-NoProfile', '-NonInteractive', '-Command', `Get-Content -LiteralPath '${lockfilePath}' -ErrorAction SilentlyContinue`],
+        { encoding: 'utf-8', timeout: 5000, windowsHide: true }
+      ).trim()
+      if (!content) continue
+      console.log('[LCU] PS read', lockfilePath, '→', JSON.stringify(content.slice(0, 80)))
+      const creds = parseLockfile(content)
+      if (creds) return { creds, installDir: dir }
     } catch { /* ignore */ }
   }
   return null
@@ -140,11 +170,15 @@ function parseCommandLine(out: string): { creds: LcuCreds; installDir: string | 
 // ── queryProcess: tries all three methods in order ────────────────────────────
 
 function queryProcess(): { creds: LcuCreds; installDir: string | null } | null {
-  // 1. Direct lockfile read — fastest, no shell
+  // 1. Direct lockfile read via Node fs
   const fromFile = tryLockfileScan()
   if (fromFile) return fromFile
 
-  // 2. WMIC — more universally available than CIM
+  // 1b. PowerShell Get-Content (if Node fs is permission-blocked)
+  const fromPs = tryPowerShellRead()
+  if (fromPs) return fromPs
+
+  // 2. WMIC
   const fromWmic = tryWmic()
   if (fromWmic) return fromWmic
 
