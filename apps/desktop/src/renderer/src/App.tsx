@@ -5,6 +5,7 @@ import LoginPage from './pages/LoginPage'
 import LobbyPage from './pages/LobbyPage'
 import PartnersPage from './pages/PartnersPage'
 import CoachingPage from './pages/CoachingPage'
+import LeaderboardPage from './pages/LeaderboardPage'
 import { Loader2 } from 'lucide-react'
 
 function AppRoutes() {
@@ -31,6 +32,7 @@ function AppRoutes() {
           <Route path="/lobby" element={<LobbyPage />} />
           <Route path="/partners" element={<PartnersPage />} />
           <Route path="/coaching" element={<CoachingPage />} />
+          <Route path="/leaderboard" element={<LeaderboardPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
