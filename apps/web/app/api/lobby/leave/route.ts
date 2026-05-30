@@ -6,6 +6,6 @@ export async function POST() {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 
-  await leaveLobby(session.userId);
+  await leaveLobby(session.userId, session.user?.riotId);
   return NextResponse.json({ ok: true });
 }

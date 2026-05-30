@@ -39,6 +39,7 @@ export async function POST(req: NextRequest) {
     : [];
 
   const userId = session.userId;
+  const riotId = session.user?.riotId ?? "";
 
   // Mutual exclusivity: leave queue and 2v2 group before going 1v1 available
   await Promise.all([
@@ -46,7 +47,7 @@ export async function POST(req: NextRequest) {
     leaveLobbyGroup(userId).catch(() => {}),
   ]);
 
-  await setLobbyAvailable(userId, {
+  await setLobbyAvailable(userId, riotId, {
     myChampion,
     champName,
     champImage,

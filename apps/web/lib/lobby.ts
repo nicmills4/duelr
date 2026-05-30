@@ -19,6 +19,7 @@ const        CHALLENGE_TTL = 45;     // 45 seconds
 const MEMBERS_KEY  = "lobby:members";
 const GROUPS_KEY   = "lobby:groups";
 export const lobbyKey     = (uid: string)   => `lobby:player:${uid}`;
+const riotIdKey    = (riotId: string) => `lobby:riotid:${riotId}`;
 const groupKey     = (gid: string)   => `lobby:group:${gid}`;
 const userGroupKey = (uid: string)   => `lobby:user:group:${uid}`;
 const challengeKey = (id: string)    => `lobby:challenge:${id}`;
@@ -27,20 +28,35 @@ const challengeKey = (id: string)    => `lobby:challenge:${id}`;
 
 export async function setLobbyAvailable(
   userId: string,
+  riotId: string,
   entry: Omit<LobbyEntry, "userId" | "joinedAt">
 ): Promise<void> {
+  // Evict any existing lobby posted under the same Riot ID (different userId).
+  // This prevents duplicate rows when the same player posts from both the
+  // web app and the desktop app simultaneously.
+  const existingUserId = await redis.get(riotIdKey(riotId));
+  if (existingUserId && existingUserId !== userId) {
+    await Promise.all([
+      redis.del(lobbyKey(existingUserId)),
+      redis.srem(MEMBERS_KEY, existingUserId),
+    ]);
+  }
+
   const full: LobbyEntry = { ...entry, userId, joinedAt: Date.now() };
   await Promise.all([
     redis.setex(lobbyKey(userId), LOBBY_TTL, JSON.stringify(full)),
     redis.sadd(MEMBERS_KEY, userId),
+    redis.setex(riotIdKey(riotId), LOBBY_TTL, userId),
   ]);
 }
 
-export async function leaveLobby(userId: string): Promise<void> {
-  await Promise.all([
+export async function leaveLobby(userId: string, riotId?: string): Promise<void> {
+  const ops: Promise<unknown>[] = [
     redis.del(lobbyKey(userId)),
     redis.srem(MEMBERS_KEY, userId),
-  ]);
+  ];
+  if (riotId) ops.push(redis.del(riotIdKey(riotId)));
+  await Promise.all(ops);
 }
 
 export async function isInLobby(userId: string): Promise<boolean> {
