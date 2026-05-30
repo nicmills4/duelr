@@ -18,45 +18,48 @@ export default function NavBar() {
   }
 
   return (
-    <header className="bg-dark-800 border-b border-dark-600 sticky top-0 z-40">
+    <header className="bg-dark-700 border-b border-white/5 shadow-lg shadow-black/40 sticky top-0 z-40">
       {/* Main nav row */}
-      <div className="flex items-center justify-between px-4 h-12">
+      <div className="flex items-center justify-between px-4 h-11">
         {/* Logo */}
-        <Link to="/" className="flex items-center gap-2 no-drag">
-          <Swords className="w-5 h-5 text-gold-400" />
-          <span className="font-bold text-white tracking-wide">
+        <Link to="/" className="flex items-center gap-2 no-drag group">
+          <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-gold-400/10 group-hover:bg-gold-400/20 transition-colors">
+            <Swords className="w-4 h-4 text-gold-400" />
+          </div>
+          <span className="font-bold text-white tracking-wide text-sm">
             Duel<span className="text-gold-400">r</span>
           </span>
         </Link>
 
         {/* Nav links */}
-        <nav className="flex items-center gap-1 no-drag">
+        <nav className="flex items-center gap-0.5 no-drag">
           <NavLink to="/lobby" current={location.pathname === '/lobby'}>Lobby</NavLink>
           <NavLink to="/partners" current={location.pathname === '/partners'}>Practice Partners</NavLink>
           <NavLink to="/coaching" current={location.pathname === '/coaching'}>Coaching</NavLink>
         </nav>
 
         {/* User section */}
-        <div className="flex items-center gap-3 no-drag">
+        <div className="flex items-center gap-2 no-drag">
           {user ? (
             <>
-              <span className="text-xs text-gray-400 hidden sm:block">
+              <span className="text-xs text-gray-500 hidden sm:block max-w-[120px] truncate">
                 {user.riotId}
               </span>
+              <div className="w-px h-4 bg-white/10" />
               <button
                 onClick={handleLogout}
                 disabled={loggingOut}
-                className="btn-ghost flex items-center gap-1.5 text-sm"
+                className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-200 px-2 py-1 rounded-md hover:bg-white/5 transition-colors disabled:opacity-50"
                 title="Log out"
               >
                 {loggingOut
-                  ? <Loader2 className="w-4 h-4 animate-spin" />
-                  : <LogOut className="w-4 h-4" />}
+                  ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  : <LogOut className="w-3.5 h-3.5" />}
                 <span className="hidden sm:inline">Log out</span>
               </button>
             </>
           ) : (
-            <Link to="/login" className="btn-secondary text-sm px-4 py-1.5">
+            <Link to="/login" className="btn-secondary text-xs px-3 py-1.5">
               Log in
             </Link>
           )}
@@ -75,13 +78,16 @@ function NavLink({
   return (
     <Link
       to={to}
-      className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+      className={`relative px-3 py-1.5 text-sm font-medium transition-colors rounded-md ${
         current
-          ? 'bg-dark-700 text-gold-400'
-          : 'text-gray-400 hover:text-gray-100 hover:bg-dark-700'
+          ? 'text-gold-400'
+          : 'text-gray-500 hover:text-gray-200 hover:bg-white/5'
       }`}
     >
       {children}
+      {current && (
+        <span className="absolute bottom-0 left-2 right-2 h-0.5 rounded-full bg-gold-400" />
+      )}
     </Link>
   )
 }

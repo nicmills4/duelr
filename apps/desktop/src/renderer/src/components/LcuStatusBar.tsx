@@ -18,15 +18,15 @@ export default function LcuStatusBar() {
 
   if (!connected) {
     return (
-      <div className="flex items-center gap-2 px-4 py-0.5 bg-dark-900 border-t border-dark-600/50">
-        <span className="w-2 h-2 rounded-full bg-gray-600 flex-shrink-0" />
+      <div className="flex items-center gap-2 px-4 py-0.5 bg-dark-800/60 border-t border-white/5">
+        <span className="w-1.5 h-1.5 rounded-full bg-gray-600 flex-shrink-0" />
         <span className="text-xs text-gray-600">League not running</span>
       </div>
     )
   }
 
   return (
-    <div className="flex items-center gap-2 px-4 py-0.5 bg-dark-900 border-t border-dark-600/50">
+    <div className="flex items-center gap-2 px-4 py-0.5 bg-dark-800/60 border-t border-white/5">
       <span className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0 animate-pulse" />
       <span className="text-xs text-emerald-400 font-medium">League connected</span>
       {summonerName && (
