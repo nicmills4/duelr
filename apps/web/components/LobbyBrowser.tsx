@@ -42,7 +42,6 @@ interface MatchResult {
   champImage:       string;
   voiceChannelUrl?: string;
   matchId?:         string;
-  lobbyJoinUrl?:    string | null;
 }
 
 interface GroupReadyResult {
@@ -605,9 +604,6 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
           setOutgoing(null);
           setAvailable(false);
           fetch("/api/lobby/pending-match").catch(() => {});
-        } else if (data.type === "lobby_url") {
-          // Opponent set the custom game join URL
-          setMatchResult((prev) => prev ? { ...prev, lobbyJoinUrl: data.joinUrl as string } : prev);
         } else if (data.type === "challenge_declined") {
           setOutgoing(null);
         } else if (data.type === "group_updated") {
@@ -646,25 +642,6 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
     };
   }, []);
 
-  // ── Poll for lobbyJoinUrl after a match (SSE closes after challenge_accepted) ─
-
-  const pollMatchId   = matchResult?.matchId   ?? null;
-  const pollJoinUrl   = matchResult?.lobbyJoinUrl ?? null;
-
-  useEffect(() => {
-    if (!pollMatchId || pollJoinUrl) return;
-    const id = setInterval(() => {
-      fetch(`/api/match/${pollMatchId}`)
-        .then((r) => r.ok ? r.json() : null)
-        .then((d: { lobbyJoinUrl?: string | null } | null) => {
-          if (d?.lobbyJoinUrl) {
-            setMatchResult((prev) => prev ? { ...prev, lobbyJoinUrl: d.lobbyJoinUrl! } : prev);
-          }
-        })
-        .catch(() => {});
-    }, 5000);
-    return () => clearInterval(id);
-  }, [pollMatchId, pollJoinUrl]);
 
   // ── 1v1 actions ───────────────────────────────────────────────────────────────
 
@@ -916,40 +893,14 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
           </div>
           <p className="text-sm text-gray-400">{matchResult.champName}</p>
         </div>
-        {/* Custom game join link — set by the desktop app via LCU */}
-        {matchResult.lobbyJoinUrl ? (
-          <div className="bg-dark-700 border border-emerald-700/40 rounded-xl p-4 text-left space-y-3">
-            <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold">Custom Game Join Link</p>
-            <div className="flex items-center gap-2 bg-dark-800 border border-dark-600 rounded-lg px-3 py-2">
-              <span className="text-xs text-gray-300 flex-1 truncate font-mono">{matchResult.lobbyJoinUrl}</span>
-              <CopyButton text={matchResult.lobbyJoinUrl} />
-            </div>
-            <a
-              href={matchResult.lobbyJoinUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn-primary w-full flex items-center justify-center gap-2 text-sm"
-            >
-              <Swords className="w-4 h-4" />
-              Join Custom Game
-            </a>
-          </div>
-        ) : (
-          <div className="bg-dark-700 border border-dark-600 rounded-xl p-4 text-sm text-gray-400 text-left space-y-2">
-            <p className="font-semibold text-white">How to start:</p>
-            <ol className="list-decimal list-inside space-y-1">
-              <li>Add <span className="text-gold-400 font-medium">{matchResult.riotId}</span> in the client</li>
-              <li>Create a Custom Game and invite them</li>
-              <li>Pick your champions and play!</li>
-            </ol>
-            {matchResult.matchId && (
-              <p className="text-xs text-gray-600 flex items-center gap-1.5 pt-1">
-                <Loader2 className="w-3 h-3 animate-spin flex-shrink-0" />
-                Waiting for the Duelr desktop app to generate a join link…
-              </p>
-            )}
-          </div>
-        )}
+        <div className="bg-dark-700 border border-dark-600 rounded-xl p-4 text-sm text-gray-400 text-left space-y-2">
+          <p className="font-semibold text-white">How to start:</p>
+          <ol className="list-decimal list-inside space-y-1">
+            <li>Add <span className="text-gold-400 font-medium">{matchResult.riotId}</span> in the client</li>
+            <li>Create a Custom Game and invite them</li>
+            <li>Pick your champions and play!</li>
+          </ol>
+        </div>
         {matchResult.voiceChannelUrl && (
           <a href={matchResult.voiceChannelUrl} target="_blank" rel="noopener noreferrer"
             className="btn-primary w-full flex items-center justify-center gap-2">
