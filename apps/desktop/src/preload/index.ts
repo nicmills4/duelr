@@ -48,6 +48,9 @@ export interface DuelrAPI {
     maximize: () => void
     close: () => void
   }
+  tray: {
+    setStatus: (payload: { kind: string; opponent?: string; since?: number }) => void
+  }
 }
 
 // ── contextBridge ─────────────────────────────────────────────────────────────
@@ -104,5 +107,9 @@ contextBridge.exposeInMainWorld('duelr', {
     minimize: () => ipcRenderer.send('window:minimize'),
     maximize: () => ipcRenderer.send('window:maximize'),
     close:    () => ipcRenderer.send('window:close'),
+  },
+
+  tray: {
+    setStatus: (payload) => ipcRenderer.send('tray:setStatus', payload),
   },
 } satisfies DuelrAPI)

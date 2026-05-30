@@ -138,6 +138,24 @@ export default function LobbyPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase.kind === 'matched' ? phase.matchId : null])
 
+  // ── Sync tray status with lobby phase ────────────────────────────────────
+
+  useEffect(() => {
+    switch (phase.kind) {
+      case 'available':
+        window.duelr.tray.setStatus({ kind: 'available' })
+        break
+      case 'matched':
+        window.duelr.tray.setStatus({ kind: 'matched', opponent: phase.opponentRiotId })
+        break
+      case 'idle':
+      case 'challenging':
+      case 'challenged':
+        window.duelr.tray.setStatus({ kind: 'idle' })
+        break
+    }
+  }, [phase.kind])
+
   // ── Listen for end-of-game result from main process ──────────────────────
 
   useEffect(() => {

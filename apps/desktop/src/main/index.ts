@@ -6,7 +6,7 @@ import { lcuGet } from './lcu/client'
 import { connectLcuEvents } from './lcu/events'
 import { createLobbyAndGetJoinUrl } from './lcu/lobby'
 import { getEndOfGameResult } from './lcu/end-of-game'
-import { createTray } from './tray'
+import { createTray, setTrayLcuConnected, setTrayStatus } from './tray'
 import { showNotification } from './notifications'
 import type { LcuCreds } from './lcu/lockfile'
 
@@ -51,12 +51,17 @@ async function onLcuConnect(creds: LcuCreds) {
 
   lastLcuStatus = { connected: true, summonerName, rankLabel }
   mainWindow?.webContents.send('lcu:status', lastLcuStatus)
+  setTrayLcuConnected(true)
 
   // Connect event stream — champion detection + phase tracking
   stopLcuEvents?.()
   stopLcuEvents = connectLcuEvents(creds, {
     onPhase: (phase) => {
       mainWindow?.webContents.send('lcu:phase', phase)
+      // Mirror LCU in-game phases to the tray
+      if (phase === 'ChampSelect') setTrayStatus({ kind: 'champSelect' })
+      else if (phase === 'InProgress') setTrayStatus({ kind: 'inGame' })
+      else if (phase === 'EndOfGame' || phase === 'None') setTrayStatus({ kind: 'idle' })
     },
     onChampion: (ddragKey) => {
       mainWindow?.webContents.send('lcu:champion', ddragKey)
@@ -80,6 +85,7 @@ function onLcuDisconnect() {
   lastLcuStatus = { connected: false }
   mainWindow?.webContents.send('lcu:status', lastLcuStatus)
   mainWindow?.webContents.send('lcu:champion', null)
+  setTrayLcuConnected(false)
 }
 
 async function handleEndOfGame() {
@@ -184,6 +190,18 @@ function setupIpc() {
   // Renderer tells main which match is active so EOG can auto-report it
   ipcMain.handle('match:setActive', (_event, matchId: string | null) => {
     activeMatchId = typeof matchId === 'string' ? matchId : null
+  })
+
+  // Renderer pushes Duelr lobby phase so the tray menu + tooltip stay in sync
+  ipcMain.on('tray:setStatus', (_event, payload: { kind: string; opponent?: string; since?: number }) => {
+    switch (payload.kind) {
+      case 'available':   setTrayStatus({ kind: 'available' }); break
+      case 'inQueue':     setTrayStatus({ kind: 'inQueue', since: payload.since ?? Date.now() }); break
+      case 'matched':     setTrayStatus({ kind: 'matched', opponent: payload.opponent ?? '?' }); break
+      case 'champSelect': setTrayStatus({ kind: 'champSelect' }); break
+      case 'inGame':      setTrayStatus({ kind: 'inGame' }); break
+      default:            setTrayStatus({ kind: 'idle' }); break
+    }
   })
 
   // Window controls (used by custom title bar in renderer)
