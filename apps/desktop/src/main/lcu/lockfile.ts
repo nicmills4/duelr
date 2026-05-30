@@ -11,60 +11,7 @@ export interface LcuCreds {
   protocol: string
 }
 
-// ── Process command-line scan ─────────────────────────────────────────────────
-
-/**
- * Read credentials directly from the running LeagueClientUx.exe process.
- * The process is started with --app-port=N and --remoting-auth-token=X
- * as command-line arguments — no lockfile needed.
- * Also returns the install directory so the watcher knows where to listen
- * for the lockfile unlink (disconnect) event.
- */
-function queryProcess(): { creds: LcuCreds; installDir: string | null } | null {
-  if (process.platform !== 'win32') return null
-  try {
-    const out = execFileSync(
-      'powershell.exe',
-      [
-        '-NoProfile', '-NonInteractive', '-Command',
-        "(Get-CimInstance Win32_Process -Filter \"name='LeagueClientUx.exe'\" | Select-Object -First 1).CommandLine",
-      ],
-      { encoding: 'utf-8', timeout: 5000, windowsHide: true }
-    ).trim()
-
-    if (!out) return null
-
-    const port     = out.match(/--app-port=(\d+)/)?.[1]
-    const password = out.match(/--remoting-auth-token=([\w-]+)/)?.[1]
-    const pid      = out.match(/--app-pid=(\d+)/)?.[1]
-
-    // Install dir may be quoted and contain spaces:
-    //   --install-directory="C:\Riot Games\League of Legends"
-    //   --install-directory=C:\Riot\LeagueOfLegends
-    const installDirMatch =
-      out.match(/--install-directory="([^"]+)"/) ??
-      out.match(/--install-directory='([^']+)'/) ??
-      out.match(/--install-directory=(\S+)/)
-    const installDir = installDirMatch?.[1]?.replace(/[\\]+$/, '') ?? null
-
-    if (!port || !password) return null
-
-    return {
-      creds: {
-        pid:      pid ? parseInt(pid, 10) : 0,
-        port:     parseInt(port, 10),
-        password,
-        protocol: 'https',
-      },
-      installDir,
-    }
-  } catch (e) {
-    console.error('[LCU] queryProcess error:', e)
-    return null
-  }
-}
-
-// ── Lockfile parser (used by the watcher for future starts) ───────────────────
+// ── Lockfile parser ───────────────────────────────────────────────────────────
 
 function parseLockfile(content: string): LcuCreds | null {
   const parts = content.trim().split(':')
@@ -73,20 +20,140 @@ function parseLockfile(content: string): LcuCreds | null {
   return { pid: parseInt(pid, 10), port: parseInt(port, 10), password, protocol }
 }
 
-// ── Candidate lockfile directories to watch ───────────────────────────────────
+// ── Candidate lockfile / install directories ──────────────────────────────────
 
-function watchDirs(): string[] {
+function candidateDirs(): string[] {
   if (process.platform === 'win32') {
     const localAppData = process.env.LOCALAPPDATA ?? path.join(os.homedir(), 'AppData', 'Local')
+    const programFiles = process.env['ProgramFiles'] ?? 'C:\\Program Files'
+    const programFilesX86 = process.env['ProgramFiles(x86)'] ?? 'C:\\Program Files (x86)'
     return [
       'C:\\Riot Games\\League of Legends',
-      'C:\\Program Files\\Riot Games\\League of Legends',
+      path.join(programFiles, 'Riot Games', 'League of Legends'),
+      path.join(programFilesX86, 'Riot Games', 'League of Legends'),
       path.join(localAppData, 'Riot Games', 'League of Legends'),
+      'D:\\Riot Games\\League of Legends',
+      'D:\\Games\\League of Legends',
+      'E:\\Riot Games\\League of Legends',
     ]
   }
   return [
     path.join(os.homedir(), 'Library', 'Application Support', 'Riot Games', 'League of Legends'),
   ]
+}
+
+// ── Method 1: direct lockfile scan ───────────────────────────────────────────
+// Fastest — no shell needed. Works as long as League is installed in a
+// known location.
+
+function tryLockfileScan(): { creds: LcuCreds; installDir: string } | null {
+  for (const dir of candidateDirs()) {
+    const lockfilePath = path.join(dir, 'lockfile')
+    try {
+      if (!fs.existsSync(lockfilePath)) continue
+      const creds = parseLockfile(fs.readFileSync(lockfilePath, 'utf-8'))
+      if (creds) {
+        console.log('[LCU] Found lockfile at:', lockfilePath)
+        return { creds, installDir: dir }
+      }
+    } catch { /* ignore */ }
+  }
+  return null
+}
+
+// ── Method 2: WMIC (broad compatibility) ─────────────────────────────────────
+
+function tryWmic(): { creds: LcuCreds; installDir: string | null } | null {
+  if (process.platform !== 'win32') return null
+  try {
+    const out = execFileSync(
+      'wmic',
+      ['process', 'where', "name='LeagueClientUx.exe'", 'get', 'CommandLine', '/format:list'],
+      { encoding: 'utf-8', timeout: 5000, windowsHide: true }
+    ).trim()
+    console.log('[LCU] WMIC output length:', out.length)
+    return parseCommandLine(out)
+  } catch (e) {
+    console.error('[LCU] WMIC error:', e)
+    return null
+  }
+}
+
+// ── Method 3: PowerShell Get-CimInstance ─────────────────────────────────────
+
+function tryCimInstance(): { creds: LcuCreds; installDir: string | null } | null {
+  if (process.platform !== 'win32') return null
+  try {
+    const out = execFileSync(
+      'powershell.exe',
+      [
+        '-NoProfile', '-NonInteractive', '-Command',
+        "(Get-CimInstance Win32_Process -Filter \"name='LeagueClientUx.exe'\" | Select-Object -First 1).CommandLine",
+      ],
+      { encoding: 'utf-8', timeout: 8000, windowsHide: true }
+    ).trim()
+    console.log('[LCU] CIM output length:', out.length)
+    return parseCommandLine(out)
+  } catch (e) {
+    console.error('[LCU] CimInstance error:', e)
+    return null
+  }
+}
+
+// ── Command-line parser (shared by WMIC + CIM) ────────────────────────────────
+
+function parseCommandLine(out: string): { creds: LcuCreds; installDir: string | null } | null {
+  if (!out) return null
+
+  // WMIC wraps the value: "CommandLine=..."
+  const cleaned = out.includes('CommandLine=')
+    ? (out.match(/CommandLine=(.+)/s)?.[1] ?? out).trim()
+    : out
+
+  const port     = cleaned.match(/--app-port=(\d+)/)?.[1]
+  const password = cleaned.match(/--remoting-auth-token=([\w-]+)/)?.[1]
+  const pid      = cleaned.match(/--app-pid=(\d+)/)?.[1]
+
+  if (!port || !password) {
+    console.log('[LCU] Could not extract port/password from command line')
+    return null
+  }
+
+  const installDirMatch =
+    cleaned.match(/--install-directory="([^"]+)"/) ??
+    cleaned.match(/--install-directory='([^']+)'/) ??
+    cleaned.match(/--install-directory=(\S+)/)
+  const installDir = installDirMatch?.[1]?.replace(/[/\\]+$/, '') ?? null
+
+  console.log('[LCU] Parsed — port:', port, 'installDir:', installDir)
+  return {
+    creds: {
+      pid:      pid ? parseInt(pid, 10) : 0,
+      port:     parseInt(port, 10),
+      password,
+      protocol: 'https',
+    },
+    installDir,
+  }
+}
+
+// ── queryProcess: tries all three methods in order ────────────────────────────
+
+function queryProcess(): { creds: LcuCreds; installDir: string | null } | null {
+  // 1. Direct lockfile read — fastest, no shell
+  const fromFile = tryLockfileScan()
+  if (fromFile) return fromFile
+
+  // 2. WMIC — more universally available than CIM
+  const fromWmic = tryWmic()
+  if (fromWmic) return fromWmic
+
+  // 3. PowerShell CIM — last resort
+  const fromCim = tryCimInstance()
+  if (fromCim) return fromCim
+
+  console.log('[LCU] All detection methods returned null — League not running or not found')
+  return null
 }
 
 // ── Main export ───────────────────────────────────────────────────────────────
@@ -103,7 +170,6 @@ export function watchLockfile(
     const result = queryProcess()
     if (!result) return
     connected = true
-    // Restart the watcher to include the actual install dir now that we know it
     if (result.installDir && !watcher.getWatched()[result.installDir]) {
       watcher.add(result.installDir)
     }
@@ -116,17 +182,18 @@ export function watchLockfile(
     onDisconnect()
   }
 
-  // ── If League is already running: read creds from its process args ─────────
+  // ── If League is already running ──────────────────────────────────────────
   const initial = queryProcess()
+  console.log('[LCU] Initial queryProcess:', initial ? `connected (port ${initial.creds.port})` : 'null')
   if (initial) {
     connected = true
     setImmediate(() => onConnect(initial.creds))
   }
 
-  // ── Watch lockfile directories for future League starts / stops ────────────
+  // ── Watch lockfile directories ────────────────────────────────────────────
   const dirs = [...new Set([
     ...(initial?.installDir ? [initial.installDir] : []),
-    ...watchDirs(),
+    ...candidateDirs(),
   ])]
 
   const watcher = chokidar.watch(dirs, {
@@ -147,10 +214,9 @@ export function watchLockfile(
   watcher.on('add',    (f) => { if (path.basename(f) === 'lockfile') tryRead(f) })
   watcher.on('change', (f) => { if (path.basename(f) === 'lockfile') tryRead(f) })
   watcher.on('unlink', (f) => { if (path.basename(f) === 'lockfile') handleDisconnect() })
-  watcher.on('error',  () => { /* ignore */ })
+  watcher.on('error',  (e) => { console.error('[LCU] watcher error:', e) })
 
-  // ── Polling fallback — catches League starts the watcher misses ────────────
-  // Runs every 5s while disconnected; stops polling once connected.
+  // ── Polling fallback every 5s while disconnected ──────────────────────────
   const pollTimer = setInterval(() => {
     if (!connected) tryConnect()
   }, 5000)
