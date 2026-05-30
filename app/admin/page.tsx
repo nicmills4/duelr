@@ -665,6 +665,15 @@ function UsersTab() {
     load(query, page);
   }
 
+  async function toggleEmailVerified(userId: string, current: boolean) {
+    await fetch("/api/admin/users", {
+      method:  "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ userId, emailVerified: !current }),
+    });
+    load(query, page);
+  }
+
   function search(e: React.FormEvent) {
     e.preventDefault();
     setPage(1);
@@ -742,7 +751,13 @@ function UsersTab() {
                     </td>
                     <td className="py-2.5 pr-4">
                       {u.email
-                        ? <Badge color={u.emailVerified ? "emerald" : "gray"}>{u.emailVerified ? "verified" : "unverified"}</Badge>
+                        ? <button
+                            onClick={() => toggleEmailVerified(u.id, u.emailVerified)}
+                            title={u.emailVerified ? "Click to unverify" : "Click to verify"}
+                            className="cursor-pointer hover:opacity-70 transition-opacity"
+                          >
+                            <Badge color={u.emailVerified ? "emerald" : "gray"}>{u.emailVerified ? "verified" : "unverified"}</Badge>
+                          </button>
                         : <span className="text-gray-600">—</span>}
                     </td>
                     <td className="py-2.5 pr-4">

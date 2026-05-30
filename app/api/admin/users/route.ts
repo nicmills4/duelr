@@ -64,6 +64,29 @@ export async function PATCH(req: NextRequest) {
   const body = await req.json().catch(() => null);
   if (!body?.userId) return NextResponse.json({ error: "userId required" }, { status: 400 });
 
+  // emailVerified toggle: { userId, emailVerified: boolean }
+  if (typeof body.emailVerified === "boolean") {
+    const user = await prisma.user.update({
+      where:  { id: body.userId },
+      data:   { emailVerified: body.emailVerified },
+      select: { id: true, riotId: true, emailVerified: true },
+    }).catch(() => null);
+
+    if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
+
+    // Bust session cache so the change is reflected immediately on next request
+    try {
+      const sessions = await prisma.session.findMany({
+        where:  { userId: body.userId },
+        select: { id: true },
+      });
+      if (sessions.length > 0)
+        await Promise.all(sessions.map(s => redis.del(`session_cache:${s.id}`)));
+    } catch {}
+
+    return NextResponse.json({ ok: true, user });
+  }
+
   const tierMap: Record<string, { accountType: string; isPremium: boolean }> = {
     guest:   { accountType: "guest", isPremium: false },
     full:    { accountType: "full",  isPremium: false },
