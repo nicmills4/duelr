@@ -18,7 +18,7 @@ export default function LcuStatusBar() {
 
   if (!connected) {
     return (
-      <div className="flex items-center gap-2 px-4 py-0.5 bg-dark-800/60 border-t border-white/5">
+      <div className="no-drag flex items-center gap-2 px-4 py-0.5 bg-dark-800/60 border-t border-white/5">
         <span className="w-1.5 h-1.5 rounded-full bg-gray-600 flex-shrink-0" />
         <span className="text-xs text-gray-600">League not running</span>
       </div>

@@ -18,7 +18,7 @@ export default function NavBar() {
   }
 
   return (
-    <header className="bg-dark-700 border-b border-white/5 shadow-lg shadow-black/40 sticky top-0 z-40">
+    <header className="drag-region bg-dark-700 border-b border-white/5 shadow-lg shadow-black/40 sticky top-0 z-40">
       {/* Main nav row */}
       <div className="flex items-center justify-between px-4 h-11">
         {/* Logo */}

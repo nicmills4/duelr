@@ -211,7 +211,19 @@ function createWindow(): BrowserWindow {
     minHeight: 600,
     show: false,
     backgroundColor: '#050A14',
-    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
+    titleBarStyle: 'hidden',
+    // On Windows: overlay the native traffic-light controls, styled to match the header
+    ...(process.platform === 'win32' && {
+      titleBarOverlay: {
+        color: '#0C1528',       // dark-700 — matches NavBar bg
+        symbolColor: '#9CA3AF', // gray-400
+        height: 44,             // matches h-11 nav row
+      },
+    }),
+    // On macOS: inset traffic lights into the header
+    ...(process.platform === 'darwin' && {
+      trafficLightPosition: { x: 12, y: 14 },
+    }),
     autoHideMenuBar: true,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
