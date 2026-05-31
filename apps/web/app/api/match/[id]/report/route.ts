@@ -13,8 +13,17 @@ import { prisma } from "@/lib/prisma";
  * is what gates the leaderboard to desktop-involved matches: with the Riot cron
  * removed and no web reporting UI, an outcome can only originate here.
  *
- * Body: { result: "win" | "loss" } — relative to the calling participant.
+ * Body: { result: "win" | "loss", myChampion?, oppChampion? } — all relative to
+ * the calling participant. The optional champions (DDragon keys, read by the
+ * desktop app from the LCU match-history record) overwrite the picks indicated
+ * at lobby creation, so the Match reflects what was ACTUALLY played. A single
+ * desktop client supplies both sides, since match history exposes every player.
  */
+// DDragon champion keys are letters only (e.g. "Orianna", "MonkeyKing").
+const CHAMP_KEY = /^[A-Za-z]{1,30}$/;
+const validChamp = (v: unknown): v is string =>
+  typeof v === "string" && CHAMP_KEY.test(v);
+
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -23,7 +32,7 @@ export async function POST(
   if (!session) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 
   const { id: matchId } = await params;
-  const { result } = await req.json(); // "win" | "loss"
+  const { result, myChampion, oppChampion } = await req.json(); // "win" | "loss" + champs
 
   if (result !== "win" && result !== "loss") {
     return NextResponse.json({ error: "result must be 'win' or 'loss'" }, { status: 400 });
@@ -51,12 +60,27 @@ export async function POST(
   const outcome =
     (isPlayerA && callerWon) || (isPlayerB && !callerWon) ? "A_WIN" : "B_WIN";
 
+  // Overwrite the indicated picks with what was actually played. The caller's
+  // own champion (myChampion) maps to their side (A or B); the opponent's to the
+  // other side. Only apply valid keys, so a missing/garbage value leaves the
+  // indicated pick untouched rather than clobbering it.
+  const champData: { champA?: string; champB?: string } = {};
+  if (validChamp(myChampion)) {
+    if (isPlayerA) champData.champA = myChampion;
+    else champData.champB = myChampion;
+  }
+  if (validChamp(oppChampion)) {
+    if (isPlayerA) champData.champB = oppChampion;
+    else champData.champA = oppChampion;
+  }
+
   await prisma.match.update({
     where: { id: matchId },
     data: {
       outcome,
       playerAReport: outcome === "A_WIN" ? "win" : "loss",
       playerBReport: outcome === "B_WIN" ? "win" : "loss",
+      ...champData,
     },
   });
 

@@ -139,9 +139,10 @@ async function handleEndOfGame() {
   const creds   = currentLcuCreds
   if (!matchId || !creds) return
 
-  const result = await getFirstBloodResult(creds)
-  // Send to renderer whether we got a result or not — renderer handles both cases
-  mainWindow?.webContents.send('lcu:eog-result', { matchId, result })
+  const { result, myChampion, oppChampion } = await getFirstBloodResult(creds)
+  // Send to renderer whether we got a result or not — renderer handles both cases.
+  // Champions reflect what was ACTUALLY played, to correct the indicated picks.
+  mainWindow?.webContents.send('lcu:eog-result', { matchId, result, myChampion, oppChampion })
 
   if (result) {
     showNotification(

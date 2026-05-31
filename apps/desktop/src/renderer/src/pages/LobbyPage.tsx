@@ -159,7 +159,7 @@ export default function LobbyPage() {
   // ── Listen for end-of-game result from main process ──────────────────────
 
   useEffect(() => {
-    window.duelr.lcu.onEogResult(async ({ matchId, result }) => {
+    window.duelr.lcu.onEogResult(async ({ matchId, result, myChampion, oppChampion }) => {
       // No manual fallback exists — the LCU first-blood read is the only source
       // of truth. If it couldn't determine a result, the match isn't recorded.
       if (!result) {
@@ -170,10 +170,15 @@ export default function LobbyPage() {
       setReportState({ status: 'reporting' })
 
       // Retry a few times to ride out transient network/server errors, since the
-      // player has no way to re-submit by hand.
+      // player has no way to re-submit by hand. Champions are sent alongside the
+      // result so the Match record reflects what was actually played.
       for (let attempt = 0; attempt < 3; attempt++) {
         try {
-          const { ok } = await api.post(`/api/match/${matchId}/report`, { result })
+          const { ok } = await api.post(`/api/match/${matchId}/report`, {
+            result,
+            myChampion,
+            oppChampion,
+          })
           if (ok) {
             setReportState({ status: 'reported', result })
             window.duelr.notify(

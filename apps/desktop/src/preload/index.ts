@@ -11,6 +11,10 @@ export interface LcuStatus {
 export interface EogResult {
   matchId: string
   result: 'win' | 'loss' | null
+  /** DDragon key the local player actually played (corrects the indicated pick). */
+  myChampion?: string | null
+  /** DDragon key the opponent actually played. */
+  oppChampion?: string | null
 }
 
 export interface DuelrAPI {
