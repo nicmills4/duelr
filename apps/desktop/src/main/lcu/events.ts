@@ -24,6 +24,13 @@ interface ChampSelectSession {
   }>
 }
 
+// /lol-gameflow/v1/session — `gameData.isCustomGame` is the reliable custom-game
+// flag from champ select through in-game (the /lol-lobby endpoint 404s once you
+// leave the lobby for champ select).
+interface GameflowSession {
+  gameData?: { isCustomGame?: boolean }
+}
+
 export interface LcuEventHandlers {
   onPhase: (phase: string) => void
   onChampion: (ddragKey: string | null) => void
@@ -35,6 +42,31 @@ export function connectLcuEvents(creds: LcuCreds, handlers: LcuEventHandlers): (
   let closed = false
   let champMap: ChampionMap = new Map()
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+
+  // The champ-select session event fires many times per second during champ
+  // select (timers, other players hovering, etc.). Dedupe so onChampion — which
+  // drives a system notification — only fires when the value actually changes.
+  // `undefined` = nothing emitted yet (distinct from an emitted `null`).
+  let lastChampion: string | null | undefined = undefined
+  function emitChampion(ddragKey: string | null) {
+    if (ddragKey === lastChampion) return
+    lastChampion = ddragKey
+    handlers.onChampion(ddragKey)
+  }
+
+  // Duelr only cares about CUSTOM games (1v1 duels). Cache whether the current
+  // game is custom so we don't re-query LCU on every champ-select tick.
+  // `null` = unknown (not yet fetched for this champ-select entry).
+  let isCustomLobby: boolean | null = null
+  async function refreshLobbyType(): Promise<boolean> {
+    try {
+      const s = await lcuGet<GameflowSession>('/lol-gameflow/v1/session', creds)
+      isCustomLobby = s?.gameData?.isCustomGame === true
+    } catch {
+      isCustomLobby = false
+    }
+    return isCustomLobby
+  }
 
   async function loadChampionMap() {
     try {
@@ -51,6 +83,14 @@ export function connectLcuEvents(creds: LcuCreds, handlers: LcuEventHandlers): (
   }
 
   async function handleChampSelect() {
+    // Only auto-fill / notify for custom games. Fetch the flag once per champ
+    // select (cached), and stay silent for normal/ranked/ARAM queues.
+    const custom = isCustomLobby ?? (await refreshLobbyType())
+    if (!custom) {
+      emitChampion(null)
+      return
+    }
+
     try {
       const session = await lcuGet<ChampSelectSession>(
         '/lol-champ-select/v1/session',
@@ -66,12 +106,12 @@ export function connectLcuEvents(creds: LcuCreds, handlers: LcuEventHandlers): (
       // Use locked-in champion, fall back to intent
       const champId = localSlot.championId || localSlot.championPickIntent
       if (!champId) {
-        handlers.onChampion(null)
+        emitChampion(null)
         return
       }
 
       const alias = champMap.get(champId)
-      handlers.onChampion(alias ?? null)
+      emitChampion(alias ?? null)
     } catch {
       // champ select session unavailable
     }
@@ -109,12 +149,15 @@ export function connectLcuEvents(creds: LcuCreds, handlers: LcuEventHandlers): (
           handlers.onPhase(phase)
 
           if (phase === 'ChampSelect') {
+            isCustomLobby = null // unknown until refreshed for this game
             handleChampSelect()
           } else if (phase === 'EndOfGame') {
             handlers.onEndOfGame()
-            handlers.onChampion(null)
+            isCustomLobby = null
+            emitChampion(null)
           } else {
-            handlers.onChampion(null)
+            isCustomLobby = null
+            emitChampion(null)
           }
         }
 
