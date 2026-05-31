@@ -230,7 +230,7 @@ export default function LobbyPage() {
           })
           setError('')
           window.duelr.notify('Match found!', `vs ${opp.riotId}`)
-          if (opp.voiceChannelUrl) window.duelr.discord.joinVoice(opp.voiceChannelUrl)
+          // Voice join is manual — user clicks "Join Discord Voice" in the matched card.
         } else if (data.type === 'challenge_declined') {
           setPhase((p) =>
             p.kind === 'challenging'
@@ -351,9 +351,7 @@ export default function LobbyPage() {
       })
       setError('')
       window.duelr.notify('Match confirmed!', `vs ${data.match.opponentRiotId} — set up your custom game`)
-      if (data.match.voiceChannelUrl) {
-        window.duelr.discord.joinVoice(data.match.voiceChannelUrl)
-      }
+      // Voice join is manual — user clicks "Join Discord Voice" in the matched card.
     } else if (accept && ok && !data?.match) {
       // Fallback: server didn't return match object (shouldn't happen, but handle gracefully)
       setError('Match found but details unavailable. Reload the app.')
@@ -501,9 +499,26 @@ export default function LobbyPage() {
           {/* ── Join link section ── */}
           <div className="pt-2 border-t border-dark-600">
             {phase.lobbyJoinUrl ? null : phase.role === 'challenger' ? (
-              /* Challenger: button to fetch the join link */
+              /* Challenger: steps + button to fetch the join link */
               lcu.connected ? (
-                <div>
+                <div className="space-y-3">
+                  <div className="bg-dark-700 border border-gold-400/30 rounded-lg p-3 space-y-2">
+                    <p className="text-xs font-semibold text-gold-400 uppercase tracking-wide">Before you click</p>
+                    <ol className="space-y-1.5">
+                      <li className="flex items-start gap-2 text-xs text-gray-300">
+                        <span className="text-gold-400 font-bold shrink-0">1.</span>
+                        <span>In League, click <span className="font-semibold text-gray-100">Play → Custom Game</span></span>
+                      </li>
+                      <li className="flex items-start gap-2 text-xs text-gray-300">
+                        <span className="text-gold-400 font-bold shrink-0">2.</span>
+                        <span>Click <span className="font-semibold text-gray-100">Create</span> and set up a Summoner's Rift lobby</span>
+                      </li>
+                      <li className="flex items-start gap-2 text-xs text-gray-300">
+                        <span className="text-gold-400 font-bold shrink-0">3.</span>
+                        <span>Once in the lobby, click the button below — your opponent receives the link automatically</span>
+                      </li>
+                    </ol>
+                  </div>
                   <button
                     onClick={handleCreateLobby}
                     disabled={creatingLobby}
@@ -514,12 +529,12 @@ export default function LobbyPage() {
                       : <Swords className="w-4 h-4" />}
                     {creatingLobby ? 'Fetching join link…' : 'Get Custom Game Join Link'}
                   </button>
-                  <p className="text-xs text-gray-600 mt-1.5">
-                    Create a custom game in League first, then click here — your opponent receives the link automatically
-                  </p>
                 </div>
               ) : (
-                <p className="text-xs text-gray-600">Start League, create a custom game, then click Get Join Link.</p>
+                <div className="bg-dark-700 border border-gold-400/30 rounded-lg p-3 space-y-1">
+                  <p className="text-xs font-semibold text-gold-400 uppercase tracking-wide">League client not detected</p>
+                  <p className="text-xs text-gray-300">Start League of Legends, create a <span className="font-semibold text-gray-100">Custom Game</span> lobby, then return here to generate the join link.</p>
+                </div>
               )
             ) : (
               /* Challenged: spinner waiting for challenger to generate the link */
@@ -553,13 +568,15 @@ export default function LobbyPage() {
                 </button>
               </div>
               <div className="flex gap-2">
-                <button
-                  onClick={() => window.duelr.shell.openExternal(phase.lobbyJoinUrl!)}
-                  className="btn-primary text-xs flex items-center gap-1.5"
-                >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                  Join Lobby
-                </button>
+                {phase.role !== 'challenger' && (
+                  <button
+                    onClick={() => window.duelr.shell.openExternal(phase.lobbyJoinUrl!)}
+                    className="btn-primary text-xs flex items-center gap-1.5"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    Join Lobby
+                  </button>
+                )}
                 <p className="text-xs text-gray-600 self-center">
                   {copied ? '✓ Copied!' : phase.role === 'challenger' ? 'Your opponent already received this link' : 'Paste in your browser to join'}
                 </p>
