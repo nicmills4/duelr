@@ -202,14 +202,24 @@ function setupIpc() {
   // Discord voice channel auto-join
   ipcMain.handle('discord:joinVoice', async (_, url: string) => {
     if (typeof url !== 'string') return
-    // Prefer discord:// protocol; fall back to https link
-    const discordUrl = url.startsWith('discord://')
-      ? url
-      : url.replace('https://discord.gg/', 'discord://discord.gg/')
+    // Convert https Discord URLs to discord:// deep links so the app opens
+    // directly without going through the browser invite page.
+    // discord.gg/CODE and discord.com/invite/CODE both map to discord.com/invite/CODE
+    let discordUrl = url
+    if (!url.startsWith('discord://')) {
+      if (url.includes('discord.gg/')) {
+        const code = url.split('discord.gg/')[1]?.split('?')[0]
+        if (code) discordUrl = `discord://discord.com/invite/${code}`
+      } else if (url.includes('discord.com/invite/')) {
+        discordUrl = url.replace('https://discord.com/', 'discord://discord.com/')
+      } else if (url.includes('discord.com/channels/')) {
+        discordUrl = url.replace('https://discord.com/', 'discord://discord.com/')
+      }
+    }
     try {
       await shell.openExternal(discordUrl)
     } catch {
-      // If discord:// fails, open the https link in browser
+      // discord:// not registered (Discord not installed) — fall back to browser
       await shell.openExternal(url)
     }
   })
@@ -270,18 +280,14 @@ function setupIpc() {
   })
   ipcMain.on('window:close', () => mainWindow?.close())
 
-  // Create a 1v1 custom lobby via LCU and return the shareable join URL
-  ipcMain.handle('lcu:createLobby', async (): Promise<string | null> => {
-    if (!currentLcuCreds) return null
-    try {
-      const url = await createLobbyAndGetJoinUrl(currentLcuCreds)
-      if (url) {
-        showNotification('Lobby created!', 'Join link copied — share it with your opponent')
-      }
-      return url
-    } catch {
-      return null
+  // Create a 1v1 custom lobby via LCU and return the result
+  ipcMain.handle('lcu:createLobby', async (): Promise<import('./lcu/lobby').CreateLobbyResult> => {
+    if (!currentLcuCreds) return { created: false, joinUrl: null, error: 'League is not connected.' }
+    const result = await createLobbyAndGetJoinUrl(currentLcuCreds)
+    if (result.created && result.joinUrl) {
+      showNotification('Join link ready!', 'Your opponent has been sent the link automatically')
     }
+    return result
   })
 }
 
@@ -344,6 +350,21 @@ function createWindow(): BrowserWindow {
 }
 
 // ── App lifecycle ────────────────────────────────────────────────────────────
+
+// Enforce single instance — if a second copy is launched, focus the existing
+// window and immediately quit the new process.
+if (!app.requestSingleInstanceLock()) {
+  app.quit()
+  process.exit(0)
+}
+
+app.on('second-instance', () => {
+  if (mainWindow) {
+    if (mainWindow.isMinimized()) mainWindow.restore()
+    mainWindow.show()
+    mainWindow.focus()
+  }
+})
 
 // Suppress Chromium's WPAD proxy-discovery requests — they hit router
 // self-signed certs and flood the console with harmless SSL errors.

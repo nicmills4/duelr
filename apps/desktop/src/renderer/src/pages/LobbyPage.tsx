@@ -19,7 +19,7 @@ type LobbyPhase =
   | { kind: 'available'; expiresAt: number }
   | { kind: 'challenging'; targetRiotId: string; challengeId: string }
   | { kind: 'challenged'; payload: ChallengePayload }
-  | { kind: 'matched'; opponentRiotId: string; voiceChannelUrl?: string; matchId: string; lobbyJoinUrl?: string }
+  | { kind: 'matched'; opponentRiotId: string; voiceChannelUrl?: string; matchId: string; lobbyJoinUrl?: string; role: 'challenger' | 'challenged' }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -223,10 +223,12 @@ export default function LobbyPage() {
           }
           setPhase({
             kind: 'matched',
+            role: 'challenger',
             matchId: opp.matchId,
             opponentRiotId: opp.riotId,
             voiceChannelUrl: opp.voiceChannelUrl,
           })
+          setError('')
           window.duelr.notify('Match found!', `vs ${opp.riotId}`)
           if (opp.voiceChannelUrl) window.duelr.discord.joinVoice(opp.voiceChannelUrl)
         } else if (data.type === 'challenge_declined') {
@@ -342,10 +344,12 @@ export default function LobbyPage() {
     if (accept && ok && data?.match) {
       setPhase({
         kind: 'matched',
+        role: 'challenged',
         matchId: data.match.id,
         opponentRiotId: data.match.opponentRiotId,
         voiceChannelUrl: data.match.voiceChannelUrl,
       })
+      setError('')
       window.duelr.notify('Match confirmed!', `vs ${data.match.opponentRiotId} — set up your custom game`)
       if (data.match.voiceChannelUrl) {
         window.duelr.discord.joinVoice(data.match.voiceChannelUrl)
@@ -370,20 +374,20 @@ export default function LobbyPage() {
   async function handleCreateLobby() {
     if (phase.kind !== 'matched') return
     setCreatingLobby(true)
+    setError('')
 
-    const joinUrl = await window.duelr.lcu.createLobby()
+    const result = await window.duelr.lcu.createLobby()
 
-    if (joinUrl) {
-      // Update local state immediately
-      setPhase((p) => p.kind === 'matched' ? { ...p, lobbyJoinUrl: joinUrl } : p)
-
-      // Copy to clipboard automatically
-      navigator.clipboard.writeText(joinUrl).catch(() => { /* ignore */ })
-
-      // Store on the Duelr match so the opponent can see it too
-      api.patch(`/api/match/${phase.matchId}/lobby-url`, { joinUrl }).catch(() => { /* non-critical */ })
+    if (!result.created) {
+      setError(result.error ?? 'Not in a custom game lobby. Create one in League first, then click here.')
+    } else if (result.joinUrl) {
+      // Full success — lobby created and join URL obtained
+      setPhase((p) => p.kind === 'matched' ? { ...p, lobbyJoinUrl: result.joinUrl! } : p)
+      navigator.clipboard.writeText(result.joinUrl).catch(() => {})
+      api.patch(`/api/match/${phase.matchId}/lobby-url`, { joinUrl: result.joinUrl }).catch(() => {})
     } else {
-      setError('Could not create lobby — make sure League is open and not in a game.')
+      // Lobby was created but join URL couldn't be fetched — not a hard failure
+      setError('Custom game created in League! Join URL unavailable — invite your opponent from inside League.')
     }
     setCreatingLobby(false)
   }
@@ -486,29 +490,51 @@ export default function LobbyPage() {
             </button>
           </div>
 
-          {/* LCU lobby creation — shown when League is connected */}
-          {lcu.connected && !phase.lobbyJoinUrl && (
-            <div className="pt-2 border-t border-dark-600">
-              <button
-                onClick={handleCreateLobby}
-                disabled={creatingLobby}
-                className="btn-primary text-sm flex items-center gap-2"
-              >
-                {creatingLobby
-                  ? <Loader2 className="w-4 h-4 animate-spin" />
-                  : <Swords className="w-4 h-4" />}
-                {creatingLobby ? 'Creating lobby…' : 'Create Custom Game & Get Join Link'}
-              </button>
-              <p className="text-xs text-gray-600 mt-1.5">
-                Auto-creates a 1v1 custom game in League and generates a shareable link for your opponent
-              </p>
+          {/* Error feedback for matched-phase actions (lobby creation etc.) */}
+          {error && (
+            <div className="flex items-center gap-2 text-sm text-red-400 bg-red-950/20 border border-red-900/30 rounded-lg px-3 py-2">
+              <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+              {error}
             </div>
           )}
 
-          {/* Join URL — shown after lobby is created */}
-          {phase.lobbyJoinUrl && (
+          {/* ── Join link section ── */}
+          <div className="pt-2 border-t border-dark-600">
+            {phase.lobbyJoinUrl ? null : phase.role === 'challenger' ? (
+              /* Challenger: button to fetch the join link */
+              lcu.connected ? (
+                <div>
+                  <button
+                    onClick={handleCreateLobby}
+                    disabled={creatingLobby}
+                    className="btn-primary text-sm flex items-center gap-2"
+                  >
+                    {creatingLobby
+                      ? <Loader2 className="w-4 h-4 animate-spin" />
+                      : <Swords className="w-4 h-4" />}
+                    {creatingLobby ? 'Fetching join link…' : 'Get Custom Game Join Link'}
+                  </button>
+                  <p className="text-xs text-gray-600 mt-1.5">
+                    Create a custom game in League first, then click here — your opponent receives the link automatically
+                  </p>
+                </div>
+              ) : (
+                <p className="text-xs text-gray-600">Start League, create a custom game, then click Get Join Link.</p>
+              )
+            ) : (
+              /* Challenged: spinner waiting for challenger to generate the link */
+              <div className="flex items-center gap-2 text-sm text-gray-400">
+                <Loader2 className="w-4 h-4 text-gold-400 animate-spin flex-shrink-0" />
+                Waiting for your opponent to generate the lobby invite link…
+              </div>
+            )}
+
+            {/* Join URL — shown to both once available */}
+            {phase.lobbyJoinUrl && (
             <div className="pt-2 border-t border-dark-600 space-y-2">
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Custom Game Join Link</p>
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                {phase.role === 'challenger' ? 'Custom Game Join Link — sent to your opponent automatically' : 'Custom Game Join Link'}
+              </p>
               <div className="flex items-center gap-2 bg-dark-700 border border-dark-600 rounded-lg px-3 py-2">
                 <span className="text-xs text-gray-300 flex-1 truncate font-mono">{phase.lobbyJoinUrl}</span>
                 <button
@@ -532,17 +558,12 @@ export default function LobbyPage() {
                   Join Lobby
                 </button>
                 <p className="text-xs text-gray-600 self-center">
-                  {copied ? '✓ Copied!' : 'Share with your opponent or click to join'}
+                  {copied ? '✓ Copied!' : phase.role === 'challenger' ? 'Your opponent already received this link' : 'Paste in your browser to join'}
                 </p>
               </div>
             </div>
-          )}
-
-          {!lcu.connected && !phase.lobbyJoinUrl && (
-            <p className="text-xs text-gray-600 pt-1">
-              Start League to auto-create a custom game and get a shareable join link.
-            </p>
-          )}
+            )}
+          </div>
 
           {/* ── Match result reporting ── */}
           <div className="pt-2 border-t border-dark-600">

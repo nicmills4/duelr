@@ -42,6 +42,7 @@ interface MatchResult {
   champImage:       string;
   voiceChannelUrl?: string;
   matchId?:         string;
+  lobbyJoinUrl?:    string;
 }
 
 interface GroupReadyResult {
@@ -446,6 +447,7 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
   const [outgoing,       setOutgoing]       = useState<OutgoingChallenge | null>(null);
   const [incoming,       setIncoming]       = useState<IncomingChallenge | null>(null);
   const [matchResult,    setMatchResult]    = useState<MatchResult | null>(null);
+  const [copiedJoinUrl,  setCopiedJoinUrl]  = useState(false);
   const [challengeErr,   setChallengeErr]   = useState("");
   const [challenging,    setChallenging]    = useState<string | null>(null);
 
@@ -634,6 +636,8 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
           fetch("/api/lobby/pending-match").catch(() => {});
         } else if (data.type === "challenge_declined") {
           setOutgoing(null);
+        } else if (data.type === "lobby_url") {
+          setMatchResult((prev) => prev ? { ...prev, lobbyJoinUrl: data.joinUrl as string } : prev);
         } else if (data.type === "group_updated") {
           const updated = data.group as LobbyGroup;
           setMyGroup((prev) => prev?.groupId === updated.groupId ? updated : prev);
@@ -670,6 +674,20 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
     };
   }, []);
 
+
+  // ── Poll for lobby join URL (fallback if SSE event was missed) ───────────────
+  useEffect(() => {
+    if (!matchResult?.matchId || matchResult.lobbyJoinUrl) return;
+    const id = setInterval(async () => {
+      const res = await fetch(`/api/match/${matchResult.matchId}`).catch(() => null);
+      if (!res?.ok) return;
+      const data = await res.json().catch(() => null);
+      if (data?.lobbyJoinUrl) {
+        setMatchResult((prev) => prev ? { ...prev, lobbyJoinUrl: data.lobbyJoinUrl } : prev);
+      }
+    }, 4000);
+    return () => clearInterval(id);
+  }, [matchResult?.matchId, matchResult?.lobbyJoinUrl]);
 
   // ── 1v1 actions ───────────────────────────────────────────────────────────────
 
@@ -915,14 +933,32 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
           </div>
           <p className="text-sm text-gray-400">{matchResult.champName}</p>
         </div>
-        <div className="bg-dark-700 border border-dark-600 rounded-xl p-4 text-sm text-gray-400 text-left space-y-2">
-          <p className="font-semibold text-white">How to start:</p>
-          <ol className="list-decimal list-inside space-y-1">
-            <li>Add <span className="text-gold-400 font-medium">{matchResult.riotId}</span> in the client</li>
-            <li>Create a Custom Game and invite them</li>
-            <li>Pick your champions and play!</li>
-          </ol>
-        </div>
+        {/* ── Join link: waiting or received ── */}
+        {matchResult.lobbyJoinUrl ? (
+          <div className="bg-dark-700 border border-emerald-800/40 rounded-xl p-4 space-y-3">
+            <p className="text-xs font-semibold text-emerald-400 uppercase tracking-wide">Custom Game Join Link</p>
+            <div className="flex items-center gap-2 bg-dark-800 border border-dark-600 rounded-lg px-3 py-2">
+              <span className="text-xs text-gray-300 flex-1 truncate font-mono">{matchResult.lobbyJoinUrl}</span>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(matchResult.lobbyJoinUrl!);
+                  setCopiedJoinUrl(true);
+                  setTimeout(() => setCopiedJoinUrl(false), 2000);
+                }}
+                className="text-gold-400 hover:text-gold-300 flex-shrink-0"
+                title="Copy join link"
+              >
+                {copiedJoinUrl ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+              </button>
+            </div>
+            <p className="text-xs text-gray-500">Paste this link in your browser to join the custom game</p>
+          </div>
+        ) : (
+          <div className="bg-dark-700 border border-dark-600 rounded-xl p-4 flex items-center gap-3">
+            <Loader2 className="w-4 h-4 text-gold-400 animate-spin flex-shrink-0" />
+            <p className="text-sm text-gray-400">Waiting for your opponent to generate the lobby invite link…</p>
+          </div>
+        )}
         {matchResult.voiceChannelUrl && (
           <DiscordVoiceButton url={matchResult.voiceChannelUrl} />
         )}

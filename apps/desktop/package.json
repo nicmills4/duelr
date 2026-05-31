@@ -30,16 +30,26 @@
     ],
     "win": {
       "target": [
-        { "target": "nsis", "arch": ["x64"] },
-        { "target": "portable", "arch": ["x64"] }
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
       ],
-      "icon": "resources/tray-icon.png"
+      "icon": "resources/tray-icon.ico"
     },
     "nsis": {
       "oneClick": false,
       "perMachine": false,
       "allowToChangeInstallationDirectory": true,
-      "installerIcon": "resources/tray-icon.png",
+      "installerIcon": "resources/tray-icon.ico",
       "shortcutName": "Duelr"
     },
     "mac": {
@@ -60,7 +70,9 @@
     "electron": "31.7.7",
     "electron-builder": "^24.13.3",
     "electron-vite": "^2.3.0",
+    "png-to-ico": "^3.0.1",
     "postcss": "^8.4.38",
+    "sharp": "^0.34.5",
     "tailwindcss": "^3.4.4",
     "typescript": "^5.5.2"
   },
