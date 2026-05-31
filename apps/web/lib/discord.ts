@@ -10,7 +10,9 @@
  *
  * Voice channels are deleted 1 hour after creation. Deletion is tracked in
  * Redis so it survives server restarts — setTimeout alone would lose pending
- * deletions on every redeploy or crash.
+ * deletions on every redeploy or crash. A periodic sweep (see instrumentation.ts)
+ * calls sweepExpiredChannels() on a fixed interval so due channels are always
+ * cleaned up, even when no new lobbies are being created.
  */
 
 import { redis } from "./redis";
@@ -24,6 +26,8 @@ const CHANNEL_LIFETIME_MS = 60 * 60 * 1000;
 const CLEANUP_KEY = "discord:pending_deletes";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
+
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 async function discordFetch(path: string, method: string, body?: object) {
   const token = process.env.DISCORD_BOT_TOKEN?.trim();
@@ -43,41 +47,81 @@ async function discordFetch(path: string, method: string, body?: object) {
 }
 
 /**
- * Delete a single Discord channel (fire-and-forget, errors are ignored).
+ * Delete a tracked channel, reporting whether it can be dropped from the
+ * pending-deletes set.
+ *   "removable" — deleted (2xx) or already gone (404); stop tracking it
+ *   "retry"     — transient failure (429/5xx/network) or bot unconfigured;
+ *                 keep it tracked so the next sweep retries it
+ *
+ * Reporting failures (instead of blindly removing from the set) is what fixes
+ * the orphaned-channel leak: a Discord DELETE that silently failed used to be
+ * forgotten anyway, stranding the channel forever.
  */
-async function deleteChannel(channelId: string): Promise<void> {
-  await discordFetch(`/channels/${channelId}`, "DELETE");
+async function deleteChannelTracked(channelId: string): Promise<"removable" | "retry"> {
+  const token = process.env.DISCORD_BOT_TOKEN?.trim();
+  if (!token) return "retry";
+
+  try {
+    const res = await fetch(`${DISCORD_API}/channels/${channelId}`, {
+      method:  "DELETE",
+      headers: { Authorization: `Bot ${token}` },
+    });
+    // 2xx = deleted, 404 = already gone. Either way we can stop tracking it.
+    if (res.ok || res.status === 404) return "removable";
+    // 429 (rate limited), 5xx, etc. — leave it for the next sweep.
+    return "retry";
+  } catch {
+    return "retry";
+  }
 }
 
 /**
- * Flush all channels whose deletion time has passed.
- * Pulls expired entries from the Redis sorted set, deletes them from Discord,
- * then removes them from the set.
+ * Delete every channel whose lifetime has elapsed.
+ *
+ * Pulls due entries from the Redis sorted set, deletes them from Discord one at
+ * a time (throttled to respect REST rate limits), and removes ONLY the ones that
+ * were actually deleted (or already gone). Transient failures stay in the set with
+ * their past-due score so the next sweep retries them.
+ *
+ * Exported so the periodic sweep in instrumentation.ts can run it on a fixed
+ * interval — independent of new-channel creation, and surviving redeploys.
  */
-async function flushExpiredChannels(): Promise<void> {
-  const now = Date.now();
+export async function sweepExpiredChannels(): Promise<void> {
+  if (!process.env.DISCORD_BOT_TOKEN?.trim()) return;
+
+  const now     = Date.now();
   // ZRANGEBYSCORE returns members with score ≤ now (i.e. already due for deletion)
-  const expired = await redis.zrangebyscore(CLEANUP_KEY, 0, now);
+  const expired = await redis.zrangebyscore(CLEANUP_KEY, 0, now).catch(() => [] as string[]);
   if (!expired.length) return;
 
-  await Promise.all(expired.map(deleteChannel));
-  await redis.zrem(CLEANUP_KEY, ...expired);
+  const removable: string[] = [];
+  for (const channelId of expired) {
+    if ((await deleteChannelTracked(channelId)) === "removable") {
+      removable.push(channelId);
+    }
+    await sleep(300); // stay comfortably under Discord's REST rate limits
+  }
+
+  if (removable.length) {
+    await redis.zrem(CLEANUP_KEY, ...removable).catch(() => {});
+  }
 }
 
 /**
  * Register a channel for deletion after CHANNEL_LIFETIME_MS.
- * Uses both Redis (durable) and setTimeout (best-effort same-process).
+ * Uses both Redis (durable, primary) and setTimeout (best-effort same-process).
  */
 function scheduleCleanup(channelId: string): void {
   const deleteAt = Date.now() + CHANNEL_LIFETIME_MS;
 
-  // Durable: survives restarts
+  // Durable: survives restarts — the periodic sweep will pick it up.
   redis.zadd(CLEANUP_KEY, deleteAt, channelId).catch(() => {});
 
-  // Best-effort: fires in this process if it stays alive
+  // Best-effort: fires in this process if it stays alive long enough.
   setTimeout(() => {
-    deleteChannel(channelId).catch(() => {});
-    redis.zrem(CLEANUP_KEY, channelId).catch(() => {});
+    deleteChannelTracked(channelId).then((result) => {
+      if (result === "removable") redis.zrem(CLEANUP_KEY, channelId).catch(() => {});
+    });
   }, CHANNEL_LIFETIME_MS);
 }
 
@@ -97,8 +141,9 @@ export async function createMatchVoiceChannel(
 
   if (!guildId) return null;
 
-  // Clean up any channels that were missed by previous restarts before creating a new one
-  flushExpiredChannels().catch(() => {});
+  // Opportunistic top-up sweep before creating a new channel. The periodic sweep
+  // in instrumentation.ts is the primary mechanism; this just keeps things tidy.
+  sweepExpiredChannels().catch(() => {});
 
   try {
     // 1. Create the voice channel.
