@@ -55,6 +55,7 @@ export default function LobbyPage() {
   const [error, setError]                   = useState('')
   const [copied, setCopied]                 = useState(false)
   const [creatingLobby, setCreatingLobby]   = useState(false)
+  const [lobbyDebug, setLobbyDebug]         = useState('')
   const [reportState, setReportState]       = useState<
     | { status: 'idle' }
     | { status: 'reporting' }
@@ -383,6 +384,10 @@ export default function LobbyPage() {
 
     const result = await window.duelr.lcu.createLobby()
 
+    // Surface the LCU call trace (main-process logs are invisible in the packaged app).
+    if (result.debug) console.log('[Duelr] createLobby trace:\n' + result.debug)
+    setLobbyDebug(result.debug ?? '')
+
     if (!result.created) {
       setError(result.error ?? 'Not in a custom game lobby. Create one in League first, then click here.')
     } else if (result.joinUrl) {
@@ -501,6 +506,18 @@ export default function LobbyPage() {
               <AlertTriangle className="w-4 h-4 flex-shrink-0" />
               {error}
             </div>
+          )}
+
+          {/* Diagnostic trace of the last join-link attempt (temporary). */}
+          {lobbyDebug && (
+            <details className="mt-2 text-xs">
+              <summary className="cursor-pointer text-gray-500 hover:text-gray-300 select-none">
+                Join-link diagnostics
+              </summary>
+              <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-all bg-dark-800 border border-dark-600 rounded-lg p-2 font-mono text-gray-400">
+                {lobbyDebug}
+              </pre>
+            </details>
           )}
 
           {/* ── Join link section ── */}

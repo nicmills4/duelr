@@ -24,8 +24,8 @@ export interface DuelrAPI {
     offPhase: () => void
     onEogResult: (cb: (eog: EogResult) => void) => void
     offEogResult: () => void
-    /** Creates a 1v1 custom game via LCU. Returns whether it was created and an optional join URL. */
-    createLobby: () => Promise<{ created: boolean; joinUrl: string | null; error?: string }>
+    /** Inspects the current LCU lobby and returns a join URL plus a diagnostic trace. */
+    createLobby: () => Promise<{ created: boolean; joinUrl: string | null; error?: string; debug?: string }>
   }
   match: {
     /** Tell main process which match is currently active so EOG can auto-report it. */
