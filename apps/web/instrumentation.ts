@@ -22,23 +22,44 @@
  */
 
 export async function register() {
-  // Only run — and only bundle the ioredis-backed sweep — in the Node.js runtime.
+  // Only run — and only bundle the Node-only sweeps — in the Node.js runtime.
+  // Both dynamic imports MUST stay inside this guard: Next compiles this file
+  // for the Edge runtime too, and webpack statically follows the imports there —
+  // pulling in ioredis / prisma (net/dns/crypto/stream), which Edge can't
+  // resolve. Guarding the imports lets webpack dead-code-eliminate them from the
+  // Edge bundle.
   if (process.env.NEXT_RUNTIME === "nodejs") {
     const { sweepExpiredChannels } = await import("./lib/discord");
+    const { runAutoReport }        = await import("./lib/auto-report");
 
-    const SWEEP_INTERVAL_MS = 5 * 60 * 1000; // every 5 minutes
+    const INTERVAL_MS = 5 * 60 * 1000; // every 5 minutes
 
+    // ── Discord voice-channel cleanup ─────────────────────────────────────────
     const runSweep = () => {
       sweepExpiredChannels().catch(() => {});
     };
 
-    // Kick one off shortly after boot to mop up anything left by the last restart…
+    // ── First-blood auto-report (Riot Match v5 polling) ───────────────────────
+    // No external cron needed: this in-process interval resolves match outcomes
+    // from first blood, and re-arms on every cold start (self-healing across
+    // redeploys). Matches persist in the DB until resolved or expired (3h), so a
+    // missed tick is picked up on the next one.
+    const runReport = () => {
+      runAutoReport().catch((err) => {
+        console.error("[instrumentation] auto-report tick failed:", err);
+      });
+    };
+
+    // Kick both off shortly after boot to mop up anything left by the last
+    // restart, then keep them running on a fixed interval.
     setTimeout(runSweep, 10_000);
+    setTimeout(runReport, 15_000);
 
-    // …then keep sweeping on a fixed interval.
-    const interval = setInterval(runSweep, SWEEP_INTERVAL_MS);
+    const sweepInterval  = setInterval(runSweep, INTERVAL_MS);
+    const reportInterval = setInterval(runReport, INTERVAL_MS);
 
-    // Don't keep the process alive solely for the sweep timer.
-    if (typeof interval.unref === "function") interval.unref();
+    // Don't keep the process alive solely for these timers.
+    if (typeof sweepInterval.unref  === "function") sweepInterval.unref();
+    if (typeof reportInterval.unref === "function") reportInterval.unref();
   }
 }
