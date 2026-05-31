@@ -124,32 +124,6 @@ export async function getMatch(matchId: string, routing: string) {
   return data as MatchDto | null;
 }
 
-/**
- * Fetch recent custom-game match IDs for a given PUUID.
- * Uses queue=0 (custom games) and startTime to limit results to after
- * the Duelr match was created.
- *
- * @param afterMs  epoch milliseconds — only return games started after this
- * @param count    max IDs to return (default 5)
- */
-export async function getRecentCustomMatchIds(
-  puuid:   string,
-  routing: string,
-  afterMs: number,
-  count    = 5,
-): Promise<string[] | null> {
-  const params = new URLSearchParams({
-    queue:     "0",                               // queue ID 0 = custom game
-    startTime: String(Math.floor(afterMs / 1000)), // Riot expects epoch seconds
-    start:     "0",
-    count:     String(count),
-  });
-  const data = await riotFetch(
-    `https://${routing}.api.riotgames.com/lol/match/v5/matches/by-puuid/${puuid}/ids?${params}`
-  );
-  return data as string[] | null;
-}
-
 // League v4 — ranked entries for a summoner
 export interface LeagueEntry {
   queueType: string;   // "RANKED_SOLO_5x5" | "RANKED_FLEX_SR"
