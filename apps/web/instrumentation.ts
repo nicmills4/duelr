@@ -13,26 +13,32 @@
  * Note: Discord's REST API does not expose voice-channel occupancy (that needs a
  * gateway connection), so the sweep is time-based: a channel is removed once its
  * 1-hour lifetime has elapsed.
+ *
+ * The Node-only work MUST live inside the `process.env.NEXT_RUNTIME === 'nodejs'`
+ * block: Next compiles this file for the Edge runtime too, and webpack statically
+ * follows the dynamic import there — pulling in ioredis (net/dns/crypto/stream),
+ * which the Edge runtime can't resolve. Keeping the import inside the guarded
+ * block lets webpack dead-code-eliminate it from the Edge bundle.
  */
 
 export async function register() {
-  // Only run in the Node.js server runtime — not the Edge runtime or build step.
-  if (process.env.NEXT_RUNTIME !== "nodejs") return;
+  // Only run — and only bundle the ioredis-backed sweep — in the Node.js runtime.
+  if (process.env.NEXT_RUNTIME === "nodejs") {
+    const { sweepExpiredChannels } = await import("./lib/discord");
 
-  const { sweepExpiredChannels } = await import("./lib/discord");
+    const SWEEP_INTERVAL_MS = 5 * 60 * 1000; // every 5 minutes
 
-  const SWEEP_INTERVAL_MS = 5 * 60 * 1000; // every 5 minutes
+    const runSweep = () => {
+      sweepExpiredChannels().catch(() => {});
+    };
 
-  const runSweep = () => {
-    sweepExpiredChannels().catch(() => {});
-  };
+    // Kick one off shortly after boot to mop up anything left by the last restart…
+    setTimeout(runSweep, 10_000);
 
-  // Kick one off shortly after boot to mop up anything left by the last restart…
-  setTimeout(runSweep, 10_000);
+    // …then keep sweeping on a fixed interval.
+    const interval = setInterval(runSweep, SWEEP_INTERVAL_MS);
 
-  // …then keep sweeping on a fixed interval.
-  const interval = setInterval(runSweep, SWEEP_INTERVAL_MS);
-
-  // Don't keep the process alive solely for the sweep timer.
-  if (typeof interval.unref === "function") interval.unref();
+    // Don't keep the process alive solely for the sweep timer.
+    if (typeof interval.unref === "function") interval.unref();
+  }
 }
