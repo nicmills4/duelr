@@ -1,10 +1,13 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
-import type { LcuStatus } from '../../../preload/index'
+import type { LcuStatus, LcuRank } from '../../../preload/index'
+
+export type { LcuRank }
 
 export interface LcuState {
   connected: boolean
   summonerName: string
   rankLabel: string
+  rank: LcuRank | null
   phase: string
   lockedChampion: string | null
 }
@@ -13,6 +16,7 @@ const defaultState: LcuState = {
   connected: false,
   summonerName: '',
   rankLabel: '',
+  rank: null,
   phase: 'None',
   lockedChampion: null,
 }
@@ -25,25 +29,22 @@ export function LcuProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     // Pull current status immediately on mount — avoids the race condition
     // where did-finish-load fires before React has registered its listener.
+    const applyStatus = (prev: LcuState, status: LcuStatus): LcuState => ({
+      ...prev,
+      connected: status.connected,
+      summonerName: status.summonerName ?? '',
+      rankLabel: status.rankLabel ?? '',
+      rank: status.rank ?? null,
+      ...(status.connected ? {} : { phase: 'None', lockedChampion: null }),
+    })
+
     window.duelr.lcu.getStatus().then((status: LcuStatus) => {
-      setState((prev) => ({
-        ...prev,
-        connected: status.connected,
-        summonerName: status.summonerName ?? '',
-        rankLabel: status.rankLabel ?? '',
-        ...(status.connected ? {} : { phase: 'None', lockedChampion: null }),
-      }))
+      setState((prev) => applyStatus(prev, status))
     })
 
     // Single shared listener for all consumers
     window.duelr.lcu.onStatus((status: LcuStatus) => {
-      setState((prev) => ({
-        ...prev,
-        connected: status.connected,
-        summonerName: status.summonerName ?? '',
-        rankLabel: status.rankLabel ?? '',
-        ...(status.connected ? {} : { phase: 'None', lockedChampion: null }),
-      }))
+      setState((prev) => applyStatus(prev, status))
     })
 
     window.duelr.lcu.onChampion((ddragKey: string | null) => {

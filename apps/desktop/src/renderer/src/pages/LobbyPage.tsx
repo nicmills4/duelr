@@ -8,6 +8,7 @@ import { useAuth } from '../context/AuthContext'
 import { useLcu } from '../hooks/useLcu'
 import ChampionSelector from '../components/ChampionSelector'
 import PlayerCard from '../components/PlayerCard'
+import { RankCrest } from '../components/LcuProfilePanels'
 import api from '../lib/api'
 import { ELO_BRACKETS, type EloBracket } from '../lib/constants'
 import type { Champion, LobbyPlayer, AcceptsType, ChallengePayload } from '../lib/lobby-types'
@@ -440,9 +441,13 @@ export default function LobbyPage() {
 
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-white">
-          Open <span className="text-gold-400">Lobby</span>
-        </h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold text-white">
+            Open <span className="text-gold-400">Lobby</span>
+          </h1>
+          {/* Live Solo/Duo ranked crest, pulled from the LCU */}
+          <RankCrest />
+        </div>
         <p className="text-sm text-gray-400 mt-1">
           Mark yourself available — other players can see you and send a direct challenge.
         </p>

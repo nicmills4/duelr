@@ -2,10 +2,20 @@ import { contextBridge, ipcRenderer } from 'electron'
 
 // ── Types exposed to renderer ─────────────────────────────────────────────────
 
+export interface LcuRank {
+  tier: string      // "EMERALD", "GOLD", … (uppercase from LCU)
+  division: string  // "IV", "III", … ("" for Master+)
+  lp: number
+  wins: number
+  losses: number
+}
+
 export interface LcuStatus {
   connected: boolean
   summonerName?: string
   rankLabel?: string
+  /** Solo/Duo ranked, or null if unranked / unavailable. */
+  rank?: LcuRank | null
 }
 
 export interface EogResult {

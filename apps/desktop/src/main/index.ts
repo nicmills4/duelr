@@ -24,11 +24,23 @@ let activeMatchId: string | null = null
 
 // Last known LCU status — re-sent to the renderer on did-finish-load so the
 // UI is correct even when League was already running before the window loaded.
-let lastLcuStatus: { connected: boolean; summonerName?: string; rankLabel?: string } = { connected: false }
+interface LcuRank { tier: string; division: string; lp: number; wins: number; losses: number }
+let lastLcuStatus: {
+  connected: boolean
+  summonerName?: string
+  rankLabel?: string
+  rank?: LcuRank | null
+} = { connected: false }
 
-interface SummonerInfo { displayName: string; internalName: string }
+interface SummonerInfo {
+  displayName: string
+  internalName: string
+}
 interface RankedStats {
-  queueMap?: Record<string, { tier: string; division: string; leaguePoints: number }>
+  queueMap?: Record<
+    string,
+    { tier: string; division: string; leaguePoints: number; wins?: number; losses?: number }
+  >
 }
 
 async function onLcuConnect(creds: LcuCreds, lockfilePath: string | null = null) {
@@ -89,12 +101,29 @@ async function onLcuConnect(creds: LcuCreds, lockfilePath: string | null = null)
   const rankLabel = solo?.tier
     ? `${solo.tier} ${solo.division ?? ''} ${solo.leaguePoints ?? 0} LP`.trim()
     : ''
+  // Structured rank for the crest panel. Master+ has no division; treat the
+  // "NA"/empty/unranked tier the client reports as no rank.
+  const rank: LcuRank | null =
+    solo?.tier && solo.tier !== 'NA' && solo.tier !== 'UNRANKED'
+      ? {
+          tier: solo.tier,
+          division: solo.division ?? '',
+          lp: solo.leaguePoints ?? 0,
+          wins: solo.wins ?? 0,
+          losses: solo.losses ?? 0,
+        }
+      : null
 
   // Guard: don't overwrite status if League disconnected while we were waiting
   if (currentLcuCreds?.port !== creds.port) return
 
   // ── Update with full summoner info once we have it ──
-  lastLcuStatus = { connected: true, summonerName, rankLabel }
+  lastLcuStatus = {
+    connected: true,
+    summonerName,
+    rankLabel,
+    rank,
+  }
   console.log('[Main] sending enriched lcu:status — summoner:', summonerName, 'rank:', rankLabel)
   mainWindow?.webContents.send('lcu:status', lastLcuStatus)
 
