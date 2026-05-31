@@ -192,19 +192,41 @@ function queryProcess(): { creds: LcuCreds; installDir: string | null } | null {
 
 // ── Main export ───────────────────────────────────────────────────────────────
 
+export interface LockfileWatcher {
+  /** Stop watching and release resources. */
+  stop: () => void
+  /**
+   * Force an immediate re-read of the lockfile. Used to self-heal when an LCU
+   * request can't reach League (stale port/token): if the creds on disk differ
+   * from the last-known ones, tears down and reconnects with the fresh creds.
+   * If League is gone, triggers a disconnect. Returns the creds to use now, or
+   * null if League is unreachable.
+   */
+  revalidate: () => LcuCreds | null
+}
+
 export function watchLockfile(
   onConnect:    (creds: LcuCreds, lockfilePath: string | null) => void,
   onDisconnect: () => void
-): () => void {
+): LockfileWatcher {
 
   let connected   = false
   let installDir: string | null = null  // dir where lockfile was last found
+  let lastCreds: LcuCreds | null = null  // creds last handed to onConnect
+
+  function markConnected(creds: LcuCreds, lockfilePath: string | null) {
+    connected = true
+    lastCreds = creds
+    console.log('[LCU] Calling onConnect — port:', creds.port)
+    Promise.resolve(onConnect(creds, lockfilePath)).catch((e) =>
+      console.error('[LCU] onConnect threw:', e)
+    )
+  }
 
   function tryConnect() {
     if (connected) return
     const result = queryProcess()
     if (!result) return
-    connected  = true
     installDir = result.installDir
     try {
       const watched = watcher.getWatched()
@@ -213,10 +235,7 @@ export function watchLockfile(
       }
     } catch { /* ignore watcher errors */ }
     const lockfilePath = 'lockfilePath' in result ? (result as any).lockfilePath as string : null
-    console.log('[LCU] Calling onConnect — port:', result.creds.port)
-    Promise.resolve(onConnect(result.creds, lockfilePath)).catch((e) =>
-      console.error('[LCU] onConnect threw:', e)
-    )
+    markConnected(result.creds, lockfilePath)
   }
 
   function handleDisconnect() {
@@ -224,7 +243,44 @@ export function watchLockfile(
     console.log('[LCU] handleDisconnect — calling onDisconnect callback')
     connected  = false
     installDir = null
+    lastCreds  = null
     onDisconnect()
+  }
+
+  /**
+   * Re-read the lockfile on demand and reconnect if the creds changed. Lets the
+   * app recover from a stale port/token without waiting for a manual League
+   * restart. Returns the creds to use now, or null if League is unreachable.
+   */
+  function revalidate(): LcuCreds | null {
+    const result = queryProcess()
+    if (!result) {
+      console.log('[LCU] revalidate — League not found; disconnecting')
+      handleDisconnect()
+      return null
+    }
+    const fresh = result.creds
+    const changed =
+      !lastCreds ||
+      lastCreds.port !== fresh.port ||
+      lastCreds.password !== fresh.password
+    if (changed) {
+      console.log(`[LCU] revalidate — creds changed, reconnecting (port ${fresh.port})`)
+      installDir = result.installDir
+      try {
+        const watched = watcher.getWatched()
+        if (result.installDir && !watched[result.installDir]) {
+          watcher.add(result.installDir)
+        }
+      } catch { /* ignore watcher errors */ }
+      const lockfilePath = 'lockfilePath' in result ? (result as any).lockfilePath as string : null
+      // onLcuConnect overwrites currentLcuCreds and restarts the event stream;
+      // any in-flight stale onLcuConnect self-aborts via its port guard.
+      markConnected(fresh, lockfilePath)
+    } else {
+      console.log(`[LCU] revalidate — creds unchanged (port ${fresh.port})`)
+    }
+    return fresh
   }
 
   function checkStillConnected() {
@@ -246,7 +302,9 @@ export function watchLockfile(
   const initial = queryProcess()
   console.log('[LCU] Initial queryProcess:', initial ? `connected (port ${initial.creds.port})` : 'null')
   if (initial) {
-    connected = true
+    connected  = true
+    lastCreds  = initial.creds
+    installDir = initial.installDir
     const initialLockfilePath = 'lockfilePath' in initial ? (initial as any).lockfilePath as string : null
     setImmediate(() => onConnect(initial.creds, initialLockfilePath))
   }
@@ -268,7 +326,7 @@ export function watchLockfile(
     if (connected) return
     try {
       const creds = parseLockfile(fs.readFileSync(filePath, 'utf-8'))
-      if (creds) { connected = true; onConnect(creds, filePath) }
+      if (creds) markConnected(creds, filePath)
     } catch { /* ignore */ }
   }
 
@@ -283,8 +341,11 @@ export function watchLockfile(
     else checkStillConnected()
   }, 5000)
 
-  return () => {
-    clearInterval(pollTimer)
-    watcher.close()
+  return {
+    stop: () => {
+      clearInterval(pollTimer)
+      watcher.close()
+    },
+    revalidate,
   }
 }

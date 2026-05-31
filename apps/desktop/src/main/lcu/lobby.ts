@@ -49,8 +49,6 @@ function extractString(v: unknown): string | null {
   return null
 }
 
-const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
-
 // ── Join-code fetching (two strategies) ──────────────────────────────────────
 
 /**

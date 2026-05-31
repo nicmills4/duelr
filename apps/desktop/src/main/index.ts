@@ -9,7 +9,7 @@ import { createLobbyAndGetJoinUrl } from './lcu/lobby'
 import { getEndOfGameResult } from './lcu/end-of-game'
 import { createTray, setTrayLcuConnected, setTrayStatus } from './tray'
 import { showNotification } from './notifications'
-import type { LcuCreds } from './lcu/lockfile'
+import type { LcuCreds, LockfileWatcher } from './lcu/lockfile'
 
 const API_ORIGIN = 'https://playduelr.gg'
 
@@ -17,7 +17,7 @@ const API_ORIGIN = 'https://playduelr.gg'
 
 let mainWindow: BrowserWindow | null = null
 let stopLcuEvents: (() => void) | null = null
-let stopLockfileWatch: (() => void) | null = null
+let lcuWatcher: LockfileWatcher | null = null
 let currentLcuCreds: LcuCreds | null = null
 // Match ID registered by the renderer when a match is found
 let activeMatchId: string | null = null
@@ -154,6 +154,35 @@ async function handleEndOfGame() {
   activeMatchId = null
 }
 
+/**
+ * Probe the current LCU creds against a cheap, always-available endpoint before
+ * an important call. If the connection is refused — the classic "stale lockfile
+ * / wrong port" symptom — re-read the lockfile and reconnect with fresh creds so
+ * the app self-heals instead of holding a dead connection until League is
+ * manually restarted. Returns the creds to use, or null if League is unreachable.
+ */
+async function ensureLiveLcu(): Promise<LcuCreds | null> {
+  // No creds latched yet — force a scan in case the watcher hasn't caught up.
+  if (!currentLcuCreds) return lcuWatcher?.revalidate() ?? null
+
+  try {
+    await lcuGet('/lol-summoner/v1/current-summoner', currentLcuCreds)
+    return currentLcuCreds  // got an HTTP response — the connection is live
+  } catch (e: any) {
+    // A real HTTP error (LcuError) means the socket is fine and the creds are
+    // good; only a refused/reset/timed-out connection signals stale creds.
+    const refused =
+      e?.code === 'ECONNREFUSED' ||
+      e?.code === 'ECONNRESET'   ||
+      e?.code === 'ECONNABORTED' ||
+      /timeout/i.test(e?.message ?? '')
+    if (!refused) return currentLcuCreds
+
+    console.log('[Main] LCU probe refused — creds may be stale, revalidating…')
+    return lcuWatcher?.revalidate() ?? null
+  }
+}
+
 // ── CORS / origin injection ──────────────────────────────────────────────────
 
 function setupCorsOverride(ses: Electron.Session) {
@@ -282,8 +311,11 @@ function setupIpc() {
 
   // Create a 1v1 custom lobby via LCU and return the result
   ipcMain.handle('lcu:createLobby', async (): Promise<import('./lcu/lobby').CreateLobbyResult> => {
-    if (!currentLcuCreds) return { created: false, joinUrl: null, error: 'League is not connected.' }
-    const result = await createLobbyAndGetJoinUrl(currentLcuCreds)
+    // Probe + self-heal stale creds first so a lingering lockfile doesn't
+    // silently fail join-link generation (the "had to restart League" bug).
+    const creds = await ensureLiveLcu()
+    if (!creds) return { created: false, joinUrl: null, error: 'League is not connected.' }
+    const result = await createLobbyAndGetJoinUrl(creds)
     if (result.created && result.joinUrl) {
       showNotification('Join link ready!', 'Your opponent has been sent the link automatically')
     }
@@ -390,7 +422,7 @@ app.whenReady().then(() => {
   createTray(win)
 
   // Start watching for League client
-  stopLockfileWatch = watchLockfile(onLcuConnect, onLcuDisconnect)
+  lcuWatcher = watchLockfile(onLcuConnect, onLcuDisconnect)
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -406,5 +438,5 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
   ;(app as any).isQuitting = true
   stopLcuEvents?.()
-  stopLockfileWatch?.()
+  lcuWatcher?.stop()
 })
