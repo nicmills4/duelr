@@ -954,9 +954,12 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
             <p className="text-xs text-gray-500">Paste this link in your browser to join the custom game</p>
           </div>
         ) : (
-          <div className="bg-dark-700 border border-dark-600 rounded-xl p-4 flex items-center gap-3">
-            <Loader2 className="w-4 h-4 text-gold-400 animate-spin flex-shrink-0" />
-            <p className="text-sm text-gray-400">Waiting for your opponent to generate the lobby invite link…</p>
+          <div className="bg-gold-400/10 border border-gold-400/40 rounded-xl p-4 flex items-center gap-3 shadow-lg shadow-gold-400/10 animate-pulse-slow">
+            <Loader2 className="w-6 h-6 text-gold-400 animate-spin flex-shrink-0" />
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-gold-400">Waiting for your opponent…</p>
+              <p className="text-xs text-gray-400 mt-0.5">Your opponent is generating the lobby invite link — it will appear here automatically.</p>
+            </div>
           </div>
         )}
         {matchResult.voiceChannelUrl && (

@@ -20,6 +20,9 @@ module.exports = {
         sans:    ['"Exo 2"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
         display: ['"Bebas Neue"', 'sans-serif'],
       },
+      animation: {
+        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+      },
     },
   },
   plugins: [],

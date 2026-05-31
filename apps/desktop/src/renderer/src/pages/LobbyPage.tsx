@@ -523,9 +523,12 @@ export default function LobbyPage() {
               )
             ) : (
               /* Challenged: spinner waiting for challenger to generate the link */
-              <div className="flex items-center gap-2 text-sm text-gray-400">
-                <Loader2 className="w-4 h-4 text-gold-400 animate-spin flex-shrink-0" />
-                Waiting for your opponent to generate the lobby invite link…
+              <div className="bg-gold-400/10 border border-gold-400/40 rounded-lg p-3 flex items-center gap-3 shadow-lg shadow-gold-400/10 animate-pulse-slow">
+                <Loader2 className="w-6 h-6 text-gold-400 animate-spin flex-shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-gold-400">Waiting for your opponent…</p>
+                  <p className="text-xs text-gray-400 mt-0.5">Your opponent is generating the lobby invite link — it will appear here automatically.</p>
+                </div>
               </div>
             )}
 
