@@ -2,10 +2,24 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyAdminSession } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
+import { hashPassword } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 const PAGE_SIZE = 50;
+const EMAIL_RE  = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** Delete all cached sessions for a user so changes take effect immediately. */
+async function bustSessionCache(userId: string) {
+  try {
+    const sessions = await prisma.session.findMany({
+      where:  { userId },
+      select: { id: true },
+    });
+    if (sessions.length > 0)
+      await Promise.all(sessions.map(s => redis.del(`session_cache:${s.id}`)));
+  } catch {}
+}
 
 // ── GET /api/admin/users?q=&page= ─────────────────────────────────────────────
 export async function GET(req: NextRequest) {
@@ -74,16 +88,53 @@ export async function PATCH(req: NextRequest) {
 
     if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
-    // Bust session cache so the change is reflected immediately on next request
-    try {
-      const sessions = await prisma.session.findMany({
-        where:  { userId: body.userId },
-        select: { id: true },
-      });
-      if (sessions.length > 0)
-        await Promise.all(sessions.map(s => redis.del(`session_cache:${s.id}`)));
-    } catch {}
+    await bustSessionCache(body.userId);
+    return NextResponse.json({ ok: true, user });
+  }
 
+  // password set/reset: { userId, password: string, email?: string }
+  // Optionally also sets the email — needed for accounts (e.g. coaches added by
+  // an admin) that never completed signup and therefore have no login email.
+  if (typeof body.password === "string") {
+    if (body.password.length < 8)
+      return NextResponse.json({ error: "Password must be at least 8 characters" }, { status: 400 });
+
+    const target = await prisma.user.findUnique({
+      where:  { id: body.userId },
+      select: { id: true, email: true },
+    });
+    if (!target) return NextResponse.json({ error: "User not found" }, { status: 404 });
+
+    const data: { passwordHash: string; email?: string; accountType?: string } = {
+      passwordHash: await hashPassword(body.password),
+    };
+
+    // Optionally set/replace the email
+    if (typeof body.email === "string" && body.email.trim() !== "") {
+      const normalizedEmail = body.email.trim().toLowerCase();
+      if (!EMAIL_RE.test(normalizedEmail))
+        return NextResponse.json({ error: "Invalid email address" }, { status: 400 });
+
+      const clash = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+      if (clash && clash.id !== body.userId)
+        return NextResponse.json({ error: "Email already in use by another account" }, { status: 409 });
+
+      data.email = normalizedEmail;
+    }
+
+    // An account with both an email and a password is a "full" account, so promote
+    // guests once they have working email + password login credentials.
+    if (data.email ?? target.email) data.accountType = "full";
+
+    const user = await prisma.user.update({
+      where:  { id: body.userId },
+      data,
+      select: { id: true, riotId: true, email: true, accountType: true },
+    }).catch(() => null);
+
+    if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
+
+    await bustSessionCache(body.userId);
     return NextResponse.json({ ok: true, user });
   }
 
@@ -104,15 +155,6 @@ export async function PATCH(req: NextRequest) {
 
   if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
-  // Bust session cache so the change takes effect immediately
-  try {
-    const sessions = await prisma.session.findMany({
-      where:  { userId: body.userId },
-      select: { id: true },
-    });
-    if (sessions.length > 0)
-      await Promise.all(sessions.map(s => redis.del(`session_cache:${s.id}`)));
-  } catch {}
-
+  await bustSessionCache(body.userId);
   return NextResponse.json({ ok: true, user });
 }

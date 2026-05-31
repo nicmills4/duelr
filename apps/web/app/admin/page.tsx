@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import {
   Shield, LogOut, Plus, Check, X, ChevronDown, ChevronUp,
   Search, RefreshCw, Trash2, ToggleLeft, ToggleRight, Users, UserCheck,
-  Link2, Copy,
+  Link2, Copy, KeyRound,
 } from "lucide-react";
 
 // ─── Clipboard helper ────────────────────────────────────────────────────────
@@ -641,6 +641,7 @@ function UsersTab() {
   const [page,      setPage]      = useState(1);
   const [total,     setTotal]     = useState(0);
   const [pageCount, setPageCount] = useState(1);
+  const [pwUser,    setPwUser]    = useState<AdminUser | null>(null);
 
   const load = useCallback(async (q: string, p: number) => {
     setLoading(true);
@@ -725,7 +726,8 @@ function UsersTab() {
                   <th className="pb-2 pr-4 font-medium">Account</th>
                   <th className="pb-2 pr-4 font-medium">Email</th>
                   <th className="pb-2 pr-4 font-medium">Coach</th>
-                  <th className="pb-2 font-medium">Joined</th>
+                  <th className="pb-2 pr-4 font-medium">Joined</th>
+                  <th className="pb-2 font-medium text-right">Password</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-800/50">
@@ -765,7 +767,16 @@ function UsersTab() {
                         ? <Badge color={u.coachProfile.isApproved ? "amber" : "gray"}>{u.coachProfile.isApproved ? "coach" : "pending"}</Badge>
                         : <span className="text-gray-600">—</span>}
                     </td>
-                    <td className="py-2.5 text-gray-500">{new Date(u.createdAt).toLocaleDateString()}</td>
+                    <td className="py-2.5 pr-4 text-gray-500">{new Date(u.createdAt).toLocaleDateString()}</td>
+                    <td className="py-2.5 text-right">
+                      <button
+                        onClick={() => setPwUser(u)}
+                        title="Set / reset this user's password"
+                        className="inline-flex items-center gap-1.5 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white rounded-lg px-2.5 py-1.5 transition-colors"
+                      >
+                        <KeyRound className="w-3.5 h-3.5" /> Set
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -798,6 +809,153 @@ function UsersTab() {
           )}
         </>
       )}
+
+      {pwUser && (
+        <SetPasswordModal
+          user={pwUser}
+          onClose={() => setPwUser(null)}
+          onSaved={() => { setPwUser(null); load(query, page); }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── Set / Reset Password Modal ───────────────────────────────────────────────
+
+function SetPasswordModal({ user, onClose, onSaved }: {
+  user:    AdminUser;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [password, setPassword] = useState("");
+  const [confirm,  setConfirm]  = useState("");
+  const [email,    setEmail]    = useState(user.email ?? "");
+  const [show,     setShow]     = useState(false);
+  const [loading,  setLoading]  = useState(false);
+  const [error,    setError]    = useState("");
+  const [done,     setDone]     = useState(false);
+
+  const needsEmail = !user.email;  // account never set a login email
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+
+    if (password.length < 8) { setError("Password must be at least 8 characters."); return; }
+    if (password !== confirm) { setError("Passwords do not match."); return; }
+    if (needsEmail && !email.trim()) { setError("This account has no login email — set one so they can sign in."); return; }
+
+    setLoading(true);
+    const res = await fetch("/api/admin/users", {
+      method:  "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({
+        userId:   user.id,
+        password,
+        ...(email.trim() && email.trim().toLowerCase() !== (user.email ?? "") ? { email: email.trim() } : {}),
+      }),
+    });
+    setLoading(false);
+
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      setError(d.error || `Server error ${res.status}`);
+      return;
+    }
+    setDone(true);
+    setTimeout(onSaved, 1200);
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+      <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-md">
+        <div className="flex items-center justify-between p-5 border-b border-gray-800">
+          <h2 className="font-bold text-lg flex items-center gap-2">
+            <KeyRound className="w-5 h-5 text-amber-400" /> Set Password
+          </h2>
+          <button onClick={onClose}><X className="w-5 h-5 text-gray-400 hover:text-white" /></button>
+        </div>
+
+        {done ? (
+          <div className="p-6 flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-emerald-400/20 flex items-center justify-center flex-shrink-0">
+              <Check className="w-4 h-4 text-emerald-400" />
+            </div>
+            <div>
+              <p className="font-semibold text-sm">Password updated</p>
+              <p className="text-xs text-gray-400">{user.riotId} can now log in with their email and the new password.</p>
+            </div>
+          </div>
+        ) : (
+          <form onSubmit={submit} className="p-5 space-y-4">
+            <div className="bg-gray-800/60 border border-gray-700 rounded-lg px-3 py-2">
+              <p className="text-xs text-gray-500">Account</p>
+              <p className="text-sm font-medium">{user.riotId}</p>
+            </div>
+
+            <Row label={needsEmail ? "Login Email (required — none set yet)" : "Login Email"}>
+              <input
+                className={inp}
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                placeholder="player@example.com"
+                required={needsEmail}
+              />
+              {needsEmail && (
+                <p className="text-xs text-amber-400/80 mt-1">
+                  This account signed up with a Riot ID only. Add an email so they have something to log in with.
+                </p>
+              )}
+            </Row>
+
+            <Row label="New Password">
+              <div className="relative">
+                <input
+                  className={`${inp} pr-16`}
+                  type={show ? "text" : "password"}
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder="At least 8 characters"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShow(s => !s)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400 hover:text-white"
+                >
+                  {show ? "Hide" : "Show"}
+                </button>
+              </div>
+            </Row>
+
+            <Row label="Confirm Password">
+              <input
+                className={inp}
+                type={show ? "text" : "password"}
+                value={confirm}
+                onChange={e => setConfirm(e.target.value)}
+                placeholder="Re-enter password"
+                required
+              />
+            </Row>
+
+            {error && <p className="text-red-400 text-sm">{error}</p>}
+
+            <div className="flex gap-3 pt-1">
+              <button type="button" onClick={onClose}
+                className="flex-1 bg-gray-800 hover:bg-gray-700 rounded-lg py-2 text-sm transition-colors">
+                Cancel
+              </button>
+              <button type="submit" disabled={loading}
+                className="flex-1 bg-amber-400 hover:bg-amber-300 text-gray-900 font-semibold rounded-lg py-2 text-sm transition-colors disabled:opacity-50">
+                {loading ? "Saving…" : "Save Password"}
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
     </div>
   );
 }
