@@ -429,7 +429,11 @@ export default function LobbyPage() {
 
   const myChamp  = champById(champions, myChampId)
   const isBusy   = phase.kind !== 'idle' && phase.kind !== 'available'
-  const otherPlayers = players.filter((p) => !user || p.userId !== user.id)
+  // Exclude self. Match on id AND riotId — riotId is a reliable fallback for the
+  // brief window after a fresh login before /api/me hydrates a real user.id.
+  const otherPlayers = players.filter(
+    (p) => !user || (p.userId !== user.id && p.riotId !== user.riotId),
+  )
 
   // ── Toggle vsChampions ─────────────────────────────────────────────────────
 

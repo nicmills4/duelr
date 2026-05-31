@@ -44,7 +44,9 @@ export async function POST(req: NextRequest) {
 
     await createSession(user.id);
 
-    return NextResponse.json({ ok: true, riotId: normalizedRiotId });
+    // userId lets clients (desktop) populate auth state immediately on login so
+    // self-filtering works before the next /api/me hydration.
+    return NextResponse.json({ ok: true, userId: user.id, riotId: normalizedRiotId });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });
