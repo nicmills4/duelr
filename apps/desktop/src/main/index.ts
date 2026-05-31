@@ -6,7 +6,7 @@ import { watchLockfile } from './lcu/lockfile'
 import { lcuGet } from './lcu/client'
 import { connectLcuEvents } from './lcu/events'
 import { createLobbyAndGetJoinUrl } from './lcu/lobby'
-import { getEndOfGameResult } from './lcu/end-of-game'
+import { getFirstBloodResult } from './lcu/end-of-game'
 import { createTray, setTrayLcuConnected, setTrayStatus } from './tray'
 import { showNotification } from './notifications'
 import type { LcuCreds, LockfileWatcher } from './lcu/lockfile'
@@ -139,14 +139,14 @@ async function handleEndOfGame() {
   const creds   = currentLcuCreds
   if (!matchId || !creds) return
 
-  const result = await getEndOfGameResult(creds)
+  const result = await getFirstBloodResult(creds)
   // Send to renderer whether we got a result or not — renderer handles both cases
   mainWindow?.webContents.send('lcu:eog-result', { matchId, result })
 
   if (result) {
     showNotification(
-      result === 'win' ? 'GG — Victory!' : 'GG — Defeat',
-      'Reporting your match result automatically…'
+      result === 'win' ? 'GG — First Blood!' : 'GG — Defeat',
+      'Recording your match result automatically…'
     )
   }
 

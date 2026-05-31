@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Loader2, Radio, CheckCircle, XCircle, Swords,
-  LogIn, Copy, ExternalLink, Clock, Users, Trophy, AlertTriangle,
+  LogIn, Copy, ExternalLink, Clock, Users, AlertTriangle,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useLcu } from '../hooks/useLcu'
@@ -60,8 +60,7 @@ export default function LobbyPage() {
     | { status: 'idle' }
     | { status: 'reporting' }
     | { status: 'reported'; result: 'win' | 'loss' }
-    | { status: 'failed' }
-    | { status: 'manual' }   // game ended, LCU couldn't detect result
+    | { status: 'failed' }   // LCU couldn't detect first blood, or submit failed
   >({ status: 'idle' })
 
   // SSE connection ref
@@ -161,33 +160,35 @@ export default function LobbyPage() {
 
   useEffect(() => {
     window.duelr.lcu.onEogResult(async ({ matchId, result }) => {
-      // Only act if this result is for our current match and we haven't reported yet
-      setPhase((current) => {
-        if (current.kind !== 'matched' || current.matchId !== matchId) return current
-        return current
-      })
+      // No manual fallback exists — the LCU first-blood read is the only source
+      // of truth. If it couldn't determine a result, the match isn't recorded.
+      if (!result) {
+        setReportState({ status: 'failed' })
+        return
+      }
 
-      // We need the matchId from the current phase at call time — use a ref approach
-      // by checking inside an async IIFE captured at event time
-      ;(async () => {
-        setReportState({ status: result ? 'reporting' : 'manual' })
-        if (!result) return
+      setReportState({ status: 'reporting' })
 
+      // Retry a few times to ride out transient network/server errors, since the
+      // player has no way to re-submit by hand.
+      for (let attempt = 0; attempt < 3; attempt++) {
         try {
           const { ok } = await api.post(`/api/match/${matchId}/report`, { result })
           if (ok) {
             setReportState({ status: 'reported', result })
             window.duelr.notify(
-              result === 'win' ? 'Victory reported!' : 'Defeat reported',
-              'Your match result has been automatically submitted.'
+              result === 'win' ? 'Victory recorded!' : 'Defeat recorded',
+              'Result auto-detected from first blood.'
             )
-          } else {
-            setReportState({ status: 'failed' })
+            return
           }
         } catch {
-          setReportState({ status: 'failed' })
+          // fall through to retry
         }
-      })()
+        await new Promise((r) => setTimeout(r, 1500))
+      }
+
+      setReportState({ status: 'failed' })
     })
 
     return () => {
@@ -402,24 +403,6 @@ export default function LobbyPage() {
     setCreatingLobby(false)
   }
 
-  async function reportManually(matchId: string, result: 'win' | 'loss') {
-    setReportState({ status: 'reporting' })
-    try {
-      const { ok } = await api.post(`/api/match/${matchId}/report`, { result })
-      if (ok) {
-        setReportState({ status: 'reported', result })
-        window.duelr.notify(
-          result === 'win' ? 'Victory reported!' : 'Defeat reported',
-          'Match result submitted.'
-        )
-      } else {
-        setReportState({ status: 'failed' })
-      }
-    } catch {
-      setReportState({ status: 'failed' })
-    }
-  }
-
   function resetToIdle() {
     setReportState({ status: 'idle' })
     goUnavailable()
@@ -618,73 +601,43 @@ export default function LobbyPage() {
           </div>
           )}
 
-          {/* ── Match result reporting ── */}
+          {/* ── Match result (auto-detected from first blood via LCU) ── */}
           <div className="pt-2 border-t border-dark-600">
             {reportState.status === 'idle' && (
-              <div className="space-y-2">
+              <div className="space-y-1">
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
-                  Report Result
+                  Match Result
                 </p>
                 <p className="text-xs text-gray-600">
                   {lcu.connected
-                    ? 'Result will be auto-detected when your game ends.'
-                    : 'Game finished? Report your result manually.'}
+                    ? 'Auto-detected from first blood when your game ends.'
+                    : 'Open the League client so Duelr can auto-detect first blood.'}
                 </p>
-                {!lcu.connected && (
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => reportManually(phase.matchId, 'win')}
-                      className="btn-primary text-xs flex items-center gap-1.5"
-                    >
-                      <Trophy className="w-3.5 h-3.5" /> I Won
-                    </button>
-                    <button
-                      onClick={() => reportManually(phase.matchId, 'loss')}
-                      className="btn-ghost text-xs text-gray-400 flex items-center gap-1.5"
-                    >
-                      <XCircle className="w-3.5 h-3.5" /> I Lost
-                    </button>
-                  </div>
-                )}
               </div>
             )}
 
             {reportState.status === 'reporting' && (
               <div className="flex items-center gap-2 text-sm text-gray-400">
                 <Loader2 className="w-4 h-4 animate-spin" />
-                Submitting result…
+                Recording result…
               </div>
             )}
 
             {reportState.status === 'reported' && (
               <div className="flex items-center gap-2 text-sm text-emerald-400">
                 <CheckCircle className="w-4 h-4" />
-                {reportState.result === 'win' ? 'Victory' : 'Defeat'} reported automatically. GG!
+                {reportState.result === 'win' ? 'Victory' : 'Defeat'} recorded from first blood. GG!
               </div>
             )}
 
-            {(reportState.status === 'failed' || reportState.status === 'manual') && (
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-xs text-amber-400">
-                  <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
-                  {reportState.status === 'failed'
-                    ? 'Auto-report failed — please report manually.'
-                    : 'Game ended — report your result:'}
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => reportManually(phase.matchId, 'win')}
-                    className="btn-primary text-xs flex items-center gap-1.5"
-                  >
-                    <Trophy className="w-3.5 h-3.5" /> I Won
-                  </button>
-                  <button
-                    onClick={() => reportManually(phase.matchId, 'loss')}
-                    className="btn-ghost text-xs text-gray-400 flex items-center gap-1.5"
-                  >
-                    <XCircle className="w-3.5 h-3.5" /> I Lost
-                  </button>
-                </div>
+            {reportState.status === 'failed' && (
+              <div className="flex items-start gap-2 text-xs text-amber-400">
+                <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                <span>
+                  Couldn&apos;t auto-detect first blood for this game, so it won&apos;t be
+                  recorded. Results come straight from the League client — keep Duelr
+                  running when your duel ends.
+                </span>
               </div>
             )}
           </div>

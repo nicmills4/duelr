@@ -2,6 +2,19 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 
+/**
+ * POST /api/match/[id]/report
+ *
+ * Records a 1v1 outcome. The desktop app is the SOLE reporter: at end-of-game it
+ * reads first blood from the League client (LCU) and submits the result for the
+ * local player. There is no manual reporting and no two-sided confirmation —
+ * a single report from either participant is authoritative and finalizes the
+ * match, because the LCU reading reflects the real game for both players. This
+ * is what gates the leaderboard to desktop-involved matches: with the Riot cron
+ * removed and no web reporting UI, an outcome can only originate here.
+ *
+ * Body: { result: "win" | "loss" } — relative to the calling participant.
+ */
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -25,32 +38,27 @@ export async function POST(
     return NextResponse.json({ error: "Not a participant in this match" }, { status: 403 });
   }
 
-  // Don't allow re-reporting once any outcome is set (including DISPUTED).
-  // Players cannot change their report after the fact — disputes must go through support.
+  // Idempotent: the first authoritative report wins. If both players' clients
+  // report (they'll agree, since both read the same first blood), the second is
+  // a harmless no-op rather than a conflict.
   if (match.outcome) {
-    return NextResponse.json({ error: "Outcome already recorded" }, { status: 409 });
+    return NextResponse.json({ ok: true, outcome: match.outcome, alreadyRecorded: true });
   }
 
-  const update = isPlayerA ? { playerAReport: result } : { playerBReport: result };
-  const updated = await prisma.match.update({
+  // A single report finalizes the outcome. Map the caller's win/loss to the
+  // absolute A_WIN / B_WIN, and mirror both report fields for consistency.
+  const callerWon = result === "win";
+  const outcome =
+    (isPlayerA && callerWon) || (isPlayerB && !callerWon) ? "A_WIN" : "B_WIN";
+
+  await prisma.match.update({
     where: { id: matchId },
-    data:  update,
+    data: {
+      outcome,
+      playerAReport: outcome === "A_WIN" ? "win" : "loss",
+      playerBReport: outcome === "B_WIN" ? "win" : "loss",
+    },
   });
 
-  // Resolve outcome when both players have reported
-  const aReport = isPlayerA ? result : updated.playerAReport;
-  const bReport = isPlayerB ? result : updated.playerBReport;
-
-  if (aReport && bReport) {
-    const agree = (aReport === "win" && bReport === "loss") ||
-                  (aReport === "loss" && bReport === "win");
-    const outcome = agree
-      ? (aReport === "win" ? "A_WIN" : "B_WIN")
-      : "DISPUTED";
-
-    await prisma.match.update({ where: { id: matchId }, data: { outcome } });
-    return NextResponse.json({ ok: true, outcome });
-  }
-
-  return NextResponse.json({ ok: true, outcome: null, waiting: "other player" });
+  return NextResponse.json({ ok: true, outcome });
 }
