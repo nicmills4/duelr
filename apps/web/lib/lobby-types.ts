@@ -35,6 +35,12 @@ export interface ChallengePayload {
   challengerChampImage: string;
   challengerElo:        string;
   targetId:             string;
+  /**
+   * Which client the challenger issued from. Lobby join links only work via the
+   * desktop app's LCU bridge, so this gates all lobby-link UI: links/waiting are
+   * only shown when the challenger is on "desktop". Defaults to "web" (legacy).
+   */
+  challengerPlatform?:  "web" | "desktop";
 }
 
 // ── 2v2 ───────────────────────────────────────────────────────────────────────

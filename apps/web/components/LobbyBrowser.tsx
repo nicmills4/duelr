@@ -43,6 +43,12 @@ interface MatchResult {
   voiceChannelUrl?: string;
   matchId?:         string;
   lobbyJoinUrl?:    string;
+  /**
+   * Platform the challenger issued from. Lobby join links only work via the
+   * desktop app's LCU bridge, so the link/"waiting" UI is shown only when this
+   * is "desktop". Undefined/"web" → no join link is coming, so hide it entirely.
+   */
+  challengerPlatform?: "web" | "desktop";
 }
 
 interface GroupReadyResult {
@@ -676,8 +682,11 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
 
 
   // ── Poll for lobby join URL (fallback if SSE event was missed) ───────────────
+  // Only when the challenger is on desktop — that's the only case a link is ever
+  // generated, so a web-vs-web match doesn't poll forever for nothing.
   useEffect(() => {
     if (!matchResult?.matchId || matchResult.lobbyJoinUrl) return;
+    if (matchResult.challengerPlatform !== "desktop") return;
     const id = setInterval(async () => {
       const res = await fetch(`/api/match/${matchResult.matchId}`).catch(() => null);
       if (!res?.ok) return;
@@ -687,7 +696,7 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
       }
     }, 4000);
     return () => clearInterval(id);
-  }, [matchResult?.matchId, matchResult?.lobbyJoinUrl]);
+  }, [matchResult?.matchId, matchResult?.lobbyJoinUrl, matchResult?.challengerPlatform]);
 
   // ── 1v1 actions ───────────────────────────────────────────────────────────────
 
@@ -933,34 +942,37 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
           </div>
           <p className="text-sm text-gray-400">{matchResult.champName}</p>
         </div>
-        {/* ── Join link: waiting or received ── */}
-        {matchResult.lobbyJoinUrl ? (
-          <div className="bg-dark-700 border border-emerald-800/40 rounded-xl p-4 space-y-3">
-            <p className="text-xs font-semibold text-emerald-400 uppercase tracking-wide">Custom Game Join Link</p>
-            <div className="flex items-center gap-2 bg-dark-800 border border-dark-600 rounded-lg px-3 py-2">
-              <span className="text-xs text-gray-300 flex-1 truncate font-mono">{matchResult.lobbyJoinUrl}</span>
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText(matchResult.lobbyJoinUrl!);
-                  setCopiedJoinUrl(true);
-                  setTimeout(() => setCopiedJoinUrl(false), 2000);
-                }}
-                className="text-gold-400 hover:text-gold-300 flex-shrink-0"
-                title="Copy join link"
-              >
-                {copiedJoinUrl ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-              </button>
+        {/* ── Join link: only when the challenger is on desktop (the only way a
+             join link is ever generated). Otherwise no lobby-link UI is shown. ── */}
+        {matchResult.challengerPlatform === "desktop" && (
+          matchResult.lobbyJoinUrl ? (
+            <div className="bg-dark-700 border border-emerald-800/40 rounded-xl p-4 space-y-3">
+              <p className="text-xs font-semibold text-emerald-400 uppercase tracking-wide">Custom Game Join Link</p>
+              <div className="flex items-center gap-2 bg-dark-800 border border-dark-600 rounded-lg px-3 py-2">
+                <span className="text-xs text-gray-300 flex-1 truncate font-mono">{matchResult.lobbyJoinUrl}</span>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(matchResult.lobbyJoinUrl!);
+                    setCopiedJoinUrl(true);
+                    setTimeout(() => setCopiedJoinUrl(false), 2000);
+                  }}
+                  className="text-gold-400 hover:text-gold-300 flex-shrink-0"
+                  title="Copy join link"
+                >
+                  {copiedJoinUrl ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                </button>
+              </div>
+              <p className="text-xs text-gray-500">Paste this link in your browser to join the custom game</p>
             </div>
-            <p className="text-xs text-gray-500">Paste this link in your browser to join the custom game</p>
-          </div>
-        ) : (
-          <div className="bg-gold-400/10 border border-gold-400/40 rounded-xl p-4 flex items-center gap-3 shadow-lg shadow-gold-400/10 animate-pulse-slow">
-            <Loader2 className="w-6 h-6 text-gold-400 animate-spin flex-shrink-0" />
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-gold-400">Waiting for your opponent…</p>
-              <p className="text-xs text-gray-400 mt-0.5">Your opponent is generating the lobby invite link — it will appear here automatically.</p>
+          ) : (
+            <div className="bg-gold-400/10 border border-gold-400/40 rounded-xl p-4 flex items-center gap-3 shadow-lg shadow-gold-400/10 animate-pulse-slow">
+              <Loader2 className="w-6 h-6 text-gold-400 animate-spin flex-shrink-0" />
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-gold-400">Waiting for your opponent…</p>
+                <p className="text-xs text-gray-400 mt-0.5">Your opponent is generating the lobby invite link — it will appear here automatically.</p>
+              </div>
             </div>
-          </div>
+          )
         )}
         {matchResult.voiceChannelUrl && (
           <DiscordVoiceButton url={matchResult.voiceChannelUrl} />

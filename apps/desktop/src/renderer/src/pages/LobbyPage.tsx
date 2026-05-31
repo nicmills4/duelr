@@ -19,7 +19,7 @@ type LobbyPhase =
   | { kind: 'available'; expiresAt: number }
   | { kind: 'challenging'; targetRiotId: string; challengeId: string }
   | { kind: 'challenged'; payload: ChallengePayload }
-  | { kind: 'matched'; opponentRiotId: string; voiceChannelUrl?: string; matchId: string; lobbyJoinUrl?: string; role: 'challenger' | 'challenged' }
+  | { kind: 'matched'; opponentRiotId: string; voiceChannelUrl?: string; matchId: string; lobbyJoinUrl?: string; role: 'challenger' | 'challenged'; challengerPlatform: 'web' | 'desktop' }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -224,6 +224,9 @@ export default function LobbyPage() {
           setPhase({
             kind: 'matched',
             role: 'challenger',
+            // This is the desktop app issuing the challenge, so the challenger
+            // (us) is always on desktop — lobby links are supported.
+            challengerPlatform: 'desktop',
             matchId: opp.matchId,
             opponentRiotId: opp.riotId,
             voiceChannelUrl: opp.voiceChannelUrl,
@@ -260,9 +263,11 @@ export default function LobbyPage() {
 
   const polledMatchId   = phase.kind === 'matched' ? phase.matchId   : null
   const existingJoinUrl = phase.kind === 'matched' ? phase.lobbyJoinUrl : null
+  // Only poll when a join link can actually be generated (challenger on desktop).
+  const pollForJoinUrl  = phase.kind === 'matched' && phase.challengerPlatform === 'desktop'
 
   useEffect(() => {
-    if (!polledMatchId || existingJoinUrl) return
+    if (!polledMatchId || existingJoinUrl || !pollForJoinUrl) return
     const id = setInterval(async () => {
       const { data } = await api.get<{ lobbyJoinUrl?: string | null }>(
         `/api/match/${polledMatchId}`
@@ -274,7 +279,7 @@ export default function LobbyPage() {
       }
     }, 5000)
     return () => clearInterval(id)
-  }, [polledMatchId, existingJoinUrl])
+  }, [polledMatchId, existingJoinUrl, pollForJoinUrl])
 
   // ── Actions ────────────────────────────────────────────────────────────────
 
@@ -321,7 +326,7 @@ export default function LobbyPage() {
     setSubmitting(true)
     const { ok, data } = await api.post<{ challengeId?: string; error?: string }>(
       '/api/lobby/challenge',
-      { targetUserId: target.userId }
+      { targetUserId: target.userId, platform: 'desktop' }
     )
     if (ok && data?.challengeId) {
       setPhase({ kind: 'challenging', targetRiotId: target.riotId, challengeId: data.challengeId })
@@ -335,7 +340,7 @@ export default function LobbyPage() {
     if (phase.kind !== 'challenged') return
     setSubmitting(true)
     const { ok, data } = await api.post<{
-      match?: { id: string; opponentRiotId: string; voiceChannelUrl?: string }
+      match?: { id: string; opponentRiotId: string; voiceChannelUrl?: string; challengerPlatform?: 'web' | 'desktop' }
     }>('/api/lobby/respond', {
       challengeId: phase.payload.challengeId,
       accept,
@@ -345,6 +350,8 @@ export default function LobbyPage() {
       setPhase({
         kind: 'matched',
         role: 'challenged',
+        // The challenger's platform decides whether a lobby link is ever coming.
+        challengerPlatform: data.match.challengerPlatform ?? 'web',
         matchId: data.match.id,
         opponentRiotId: data.match.opponentRiotId,
         voiceChannelUrl: data.match.voiceChannelUrl,
@@ -497,6 +504,10 @@ export default function LobbyPage() {
           )}
 
           {/* ── Join link section ── */}
+          {/* Lobby links only work when the challenger is on desktop (LCU). The
+              challenger here is always on desktop; the challenged player only
+              shows link UI when their challenger was on desktop. */}
+          {(phase.role === 'challenger' || phase.challengerPlatform === 'desktop') && (
           <div className="pt-2 border-t border-dark-600">
             {phase.lobbyJoinUrl ? null : phase.role === 'challenger' ? (
               /* Challenger: steps + button to fetch the join link */
@@ -584,6 +595,7 @@ export default function LobbyPage() {
             </div>
             )}
           </div>
+          )}
 
           {/* ── Match result reporting ── */}
           <div className="pt-2 border-t border-dark-600">

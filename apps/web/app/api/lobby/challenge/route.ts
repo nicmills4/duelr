@@ -16,6 +16,12 @@ export async function POST(req: NextRequest) {
   const challengerId = session.userId;
   const { targetUserId } = body;
 
+  // Which client is the challenger on? Lobby join links require the desktop
+  // app's LCU bridge, so the responder's UI uses this to decide whether a join
+  // link is ever coming. Desktop sends platform: "desktop"; web omits it.
+  const challengerPlatform: "web" | "desktop" =
+    body.platform === "desktop" ? "desktop" : "web";
+
   if (targetUserId === challengerId) {
     return NextResponse.json({ error: "Cannot challenge yourself" }, { status: 400 });
   }
@@ -54,6 +60,7 @@ export async function POST(req: NextRequest) {
     challengerChampImage: entry.champImage,
     challengerElo: entry.eloBracket,
     targetId: targetUserId,
+    challengerPlatform,
   });
 
   // Push real-time notification to the target

@@ -66,6 +66,7 @@ export async function POST(req: NextRequest) {
   ]);
 
   const voiceChannelUrl = voiceChannel?.url;
+  const challengerPlatform = challenge.challengerPlatform ?? "web";
 
   const opponentForChallenger = {
     riotId:          responderUser?.riotId ?? "Unknown",
@@ -74,6 +75,8 @@ export async function POST(req: NextRequest) {
     champImage:      responderLobby?.champImage ?? "",
     voiceChannelUrl,
     matchId:         dbMatch.id,
+    // The challenger's own platform (for their UI / reload-restore via pending-match)
+    challengerPlatform,
   };
 
   // Persist match result in Redis for 10 min so the challenger can retrieve it
@@ -102,12 +105,15 @@ export async function POST(req: NextRequest) {
       champImage:      challenge.challengerChampImage,
       voiceChannelUrl: voiceChannelUrl ?? undefined,
       matchId:         dbMatch.id,
+      // The challenger's platform — gates whether the responder sees lobby-link UI
+      challengerPlatform,
     },
     // Desktop app (LobbyPage) reads this:
     match: {
       id:              dbMatch.id,
       opponentRiotId:  challenge.challengerRiotId,
       voiceChannelUrl: voiceChannelUrl ?? undefined,
+      challengerPlatform,
     },
   });
 }
