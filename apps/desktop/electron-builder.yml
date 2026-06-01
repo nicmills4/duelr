@@ -1,5 +1,6 @@
 appId: gg.playduelr.desktop
 productName: Duelr
+copyright: Copyright © 2025 Duelr
 directories:
   buildResources: resources
 
@@ -11,12 +12,22 @@ files:
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
 
+# Windows-only for now. League/LCU runs on Windows + macOS; mac is a later phase
+# and gates on Apple signing + notarization, so it's intentionally omitted here.
 win:
   executableName: Duelr
+  icon: resources/tray-icon.ico
   target:
     - target: nsis
       arch:
         - x64
+  # ── Phase 1: Azure Trusted Signing — uncomment + fill once the Azure account is live. ──
+  # Creds are supplied via env in CI: AZURE_TENANT_ID / AZURE_CLIENT_ID / AZURE_CLIENT_SECRET.
+  # azureSignOptions:
+  #   publisherName: Duelr
+  #   endpoint: https://<region>.codesigning.azure.net/
+  #   codeSigningAccountName: <trusted-signing-account>
+  #   certificateProfileName: <certificate-profile>
 
 nsis:
   artifactName: ${name}-setup-${version}.${ext}
@@ -24,34 +35,11 @@ nsis:
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
 
-mac:
-  entitlementsInherit: build/entitlements.mac.plist
-  extendInfo:
-    - NSCameraUsageDescription: Application requests access to the device's camera.
-    - NSMicrophoneUsageDescription: Application requests access to the device's microphone.
-  notarize: false
-  target:
-    - target: dmg
-      arch:
-        - x64
-        - arm64
-
-dmg:
-  artifactName: ${name}-${version}.${ext}
-
-linux:
-  target:
-    - AppImage
-    - snap
-  maintainer: electronjs.org
-  category: Utility
-
-appImage:
-  artifactName: ${name}-${version}.${ext}
-
 npmRebuild: false
 
+# Auto-update feed → GitHub Releases on the public monorepo. Public repo means
+# electron-updater needs no token, and CI publishes with the built-in GITHUB_TOKEN.
 publish:
   provider: github
   owner: nicmills4
-  repo: duelr-desktop
+  repo: duelr

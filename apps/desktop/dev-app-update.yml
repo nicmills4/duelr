@@ -1,0 +1,7 @@
+# Lets `electron-vite dev` / an unpacked build point the updater at real published
+# releases so the auto-update flow can be tested without a full install. Mirrors the
+# `publish` block in electron-builder.yml.
+provider: github
+owner: nicmills4
+repo: duelr
+updaterCacheDirName: duelr-updater

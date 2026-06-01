@@ -10,54 +10,7 @@
     "preview": "electron-vite preview",
     "dist": "npm run build && electron-builder",
     "dist:win": "npm run build && electron-builder --win",
-    "dist:mac": "npm run build && electron-builder --mac"
-  },
-  "build": {
-    "appId": "gg.playduelr.desktop",
-    "productName": "Duelr",
-    "copyright": "Copyright © 2025 Duelr",
-    "directories": {
-      "output": "dist"
-    },
-    "files": [
-      "out/**/*"
-    ],
-    "extraResources": [
-      {
-        "from": "resources/",
-        "to": "resources/"
-      }
-    ],
-    "win": {
-      "target": [
-        {
-          "target": "nsis",
-          "arch": [
-            "x64"
-          ]
-        },
-        {
-          "target": "portable",
-          "arch": [
-            "x64"
-          ]
-        }
-      ],
-      "icon": "resources/tray-icon.ico"
-    },
-    "nsis": {
-      "oneClick": false,
-      "perMachine": false,
-      "allowToChangeInstallationDirectory": true,
-      "installerIcon": "resources/tray-icon.ico",
-      "shortcutName": "Duelr"
-    },
-    "mac": {
-      "target": "dmg",
-      "icon": "resources/tray-icon.png",
-      "category": "public.app-category.games"
-    },
-    "publish": null
+    "release": "npm run build && electron-builder --win --publish always"
   },
   "devDependencies": {
     "@electron-toolkit/tsconfig": "^1.0.1",
@@ -68,7 +21,7 @@
     "@vitejs/plugin-react": "^4.3.1",
     "autoprefixer": "^10.4.19",
     "electron": "31.7.7",
-    "electron-builder": "^24.13.3",
+    "electron-builder": "^26.0.0",
     "electron-vite": "^2.3.0",
     "png-to-ico": "^3.0.1",
     "postcss": "^8.4.38",
@@ -79,6 +32,8 @@
   "dependencies": {
     "@electron-toolkit/utils": "^3.0.0",
     "chokidar": "^3.6.0",
+    "electron-log": "^5.4.4",
+    "electron-updater": "^6.8.3",
     "lucide-react": "^0.400.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
