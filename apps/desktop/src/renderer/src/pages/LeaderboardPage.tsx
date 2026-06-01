@@ -36,7 +36,7 @@ export default function LeaderboardPage() {
       setEntries(data.leaderboard)
       setLastFetch(new Date())
     } else {
-      setError('Could not load leaderboard.')
+      setError('Could not load top players.')
     }
     setLoading(false)
   }
@@ -50,7 +50,7 @@ export default function LeaderboardPage() {
         <div className="flex items-center gap-3">
           <Trophy className="w-6 h-6 text-gold-400" />
           <div>
-            <h1 className="text-xl font-bold text-white">Leaderboard</h1>
+            <h1 className="text-xl font-bold text-white">Duelr 1v1 Top Players</h1>
             <p className="text-xs text-gray-500">
               Ranked by confirmed 1v1 wins · minimum 3 reported games
             </p>

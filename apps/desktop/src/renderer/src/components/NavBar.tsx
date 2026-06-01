@@ -36,7 +36,7 @@ export default function NavBar() {
           <NavLink to="/lobby" current={location.pathname === '/lobby'}>Lobby</NavLink>
           <NavLink to="/partners" current={location.pathname === '/partners'}>Practice Partners</NavLink>
           <NavLink to="/coaching" current={location.pathname === '/coaching'}>Coaching</NavLink>
-          <NavLink to="/leaderboard" current={location.pathname === '/leaderboard'}>Leaderboard</NavLink>
+          <NavLink to="/leaderboard" current={location.pathname === '/leaderboard'}>Duelr 1v1 Top Players</NavLink>
         </nav>
 
         {/* User section + window controls */}

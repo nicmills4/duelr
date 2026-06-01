@@ -62,7 +62,7 @@ export default async function LeaderboardPage() {
       <div className="flex items-center gap-3 mb-8">
         <Trophy className="w-7 h-7 text-gold-400" />
         <div>
-          <h1 className="text-2xl font-bold text-white">Leaderboard</h1>
+          <h1 className="text-2xl font-bold text-white">Duelr 1v1 Top Players</h1>
           <p className="text-sm text-gray-500">
             Ranked by confirmed 1v1 wins · minimum 3 reported games
           </p>

@@ -101,7 +101,7 @@ export default function NavLinks({
         <a href="/lobby"       className="hover:text-gold-400 transition-colors">Lobby</a>
         <ProtectedLink href="/partners"   label="Practice Partners" accountType={accountType} requiresFull={true} />
         <ProtectedLink href="/coaching"   label="Coaching"          accountType={accountType} requiresFull={true} />
-        <a href="/leaderboard" className="hover:text-gold-400 transition-colors">Leaderboard</a>
+        <a href="/leaderboard" className="hover:text-gold-400 transition-colors">Duelr 1v1 Top Players</a>
       </nav>
 
       {/* Mobile hamburger button */}
@@ -129,7 +129,7 @@ export default function NavLinks({
               <MobileNavLink href="/coaching"   label="Coaching"          accountType={accountType} requiresFull={true}  onClick={close} />
               <a href="/leaderboard" onClick={close}
                 className="flex items-center px-5 py-4 text-sm text-gray-300 hover:text-gold-400 hover:bg-dark-700/40 active:bg-dark-700/60 transition-colors border-b border-dark-700/50">
-                Leaderboard
+                Duelr 1v1 Top Players
               </a>
               {hasSession && (
                 <a href="/settings" onClick={close}
