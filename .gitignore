@@ -2,3 +2,16 @@
 node_modules/
 .DS_Store
 Thumbs.db
+
+# ── Secrets — never commit (matches at any depth) ──
+.env
+.env.*
+!.env.example
+api_key.txt
+*.pem
+*.key
+
+# ── Build artifacts ──
+.next/
+*.tsbuildinfo
+next-env.d.ts
