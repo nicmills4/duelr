@@ -9,6 +9,7 @@ import { createLobbyAndGetJoinUrl } from './lcu/lobby'
 import { getFirstBloodResult } from './lcu/end-of-game'
 import { createTray, setTrayLcuConnected, setTrayStatus } from './tray'
 import { showNotification } from './notifications'
+import { initAutoUpdater } from './updater'
 import type { LcuCreds, LockfileWatcher } from './lcu/lockfile'
 
 const API_ORIGIN = 'https://playduelr.gg'
@@ -453,6 +454,9 @@ app.whenReady().then(() => {
 
   // Start watching for League client
   lcuWatcher = watchLockfile(onLcuConnect, onLcuDisconnect)
+
+  // Background auto-updates (no-op until packaged); installs on quit.
+  initAutoUpdater(() => mainWindow)
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

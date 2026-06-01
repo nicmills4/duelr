@@ -2,6 +2,7 @@ import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { LcuProvider } from './context/LcuContext'
 import NavBar from './components/NavBar'
+import UpdateBanner from './components/UpdateBanner'
 import LoginPage from './pages/LoginPage'
 import LobbyPage from './pages/LobbyPage'
 import PartnersPage from './pages/PartnersPage'
@@ -27,6 +28,7 @@ function AppRoutes() {
   return (
     <div className="min-h-screen flex flex-col bg-dark-900">
       <NavBar />
+      <UpdateBanner />
       <main className="flex-1 overflow-auto">
         <Routes>
           <Route path="/" element={<Navigate to={user ? '/lobby' : '/login'} replace />} />

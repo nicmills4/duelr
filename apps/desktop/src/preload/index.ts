@@ -27,6 +27,13 @@ export interface EogResult {
   oppChampion?: string | null
 }
 
+export interface UpdateStatus {
+  state:    'checking' | 'available' | 'none' | 'downloading' | 'ready' | 'error'
+  version?: string
+  percent?: number
+  message?: string
+}
+
 export interface DuelrAPI {
   lcu: {
     onStatus: (cb: (status: LcuStatus) => void) => void
@@ -51,6 +58,13 @@ export interface DuelrAPI {
   notify: (title: string, body: string) => Promise<void>
   shell: {
     openExternal: (url: string) => Promise<void>
+  }
+  updates: {
+    onStatus: (cb: (status: UpdateStatus) => void) => void
+    offStatus: () => void
+    getStatus: () => Promise<UpdateStatus>
+    check: () => Promise<void>
+    quitAndInstall: () => Promise<void>
   }
   safeStorage: {
     /** Encrypt a plaintext string via OS keychain. Returns base64 ciphertext. */
@@ -112,6 +126,17 @@ contextBridge.exposeInMainWorld('duelr', {
 
   shell: {
     openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', url),
+  },
+
+  updates: {
+    onStatus: (cb: (status: UpdateStatus) => void) => {
+      ipcRenderer.removeAllListeners('update:status')
+      ipcRenderer.on('update:status', (_, status: UpdateStatus) => cb(status))
+    },
+    offStatus: () => ipcRenderer.removeAllListeners('update:status'),
+    getStatus: () => ipcRenderer.invoke('update:getStatus'),
+    check: () => ipcRenderer.invoke('update:check'),
+    quitAndInstall: () => ipcRenderer.invoke('update:quitAndInstall'),
   },
 
   safeStorage: {
