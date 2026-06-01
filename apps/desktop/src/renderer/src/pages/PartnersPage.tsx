@@ -59,8 +59,8 @@ function ChampStrip({ champs, max = 8, size = 28 }: {
   )
 }
 
-function LanePills({ lanes }: { lanes: string[] }) {
-  const shown = PARTNER_LANES.filter((l) => lanes.includes(l))
+function LanePills({ lanes }: { lanes?: string[] }) {
+  const shown = PARTNER_LANES.filter((l) => (lanes ?? []).includes(l))
   if (shown.length === 0) return null
   return (
     <div className="flex flex-wrap gap-1.5">
@@ -137,7 +137,7 @@ function PostCard({ post, isOwn, onEdit, onDelete }: {
         )}
       </div>
 
-      {post.lanes.length > 0 && (
+      {(post.lanes?.length ?? 0) > 0 && (
         <div>
           <p className="text-[10px] text-gray-600 uppercase tracking-wide mb-1">Lane</p>
           <LanePills lanes={post.lanes} />
