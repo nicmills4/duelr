@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import {
-  joinLobbyGroup, leaveLobby, leaveLobbyGroup,
+  joinLobbyGroup, leaveLobby, leaveLobbyGroup, createReadyGroup,
 } from "@/lib/lobby";
 import { leaveQueue } from "@/lib/matchmaking";
 import { redis, notificationChannel } from "@/lib/redis";
@@ -73,6 +73,8 @@ export async function POST(req: NextRequest) {
   const { group, isFull } = result;
 
   let voiceChannelUrl: string | undefined;
+  let readyGroupId:    string | undefined;
+  let hostUserId:      string | undefined;
 
   if (isFull) {
     // Build team summaries, create voice channel, notify all 4 members
@@ -81,8 +83,22 @@ export async function POST(req: NextRequest) {
 
     voiceChannelUrl = (await createMatchVoiceChannel("2v2-bot-lane", 4))?.url ?? undefined;
 
+    // Persist a ready-group so the host can distribute a custom-game invite link
+    // (the live group was just deleted from Redis when it filled).
+    const allMembers = ALL_SLOTS.map((k) => group[k]).filter(Boolean) as GroupSlot[];
+    const host       = allMembers.find((m) => m.isHost) ?? allMembers[0];
+    const readyGroup = await createReadyGroup(
+      host.userId,
+      allMembers.map((m) => m.userId),
+      voiceChannelUrl,
+    );
+    readyGroupId = readyGroup.readyGroupId;
+    hostUserId   = host.userId;
+
     await notifyGroup(group, {
       type: "group_ready",
+      readyGroupId,
+      hostUserId,
       team1,
       team2,
       voiceChannelUrl,
@@ -104,5 +120,5 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  return NextResponse.json({ ok: true, group, isFull, voiceChannelUrl });
+  return NextResponse.json({ ok: true, group, isFull, voiceChannelUrl, readyGroupId, hostUserId });
 }

@@ -308,6 +308,53 @@ export async function getLobbyGroups(): Promise<LobbyGroup[]> {
   return groups.sort((a, b) => b.createdAt - a.createdAt);
 }
 
+// ── Ready groups (post-fill) ────────────────────────────────────────────────────
+// A 2v2 group is deleted from Redis the moment it fills (see JOIN_GROUP_SCRIPT),
+// so there is no durable record to hang a custom-game invite link on. We persist
+// a lightweight "ready group" keyed by its own id: the host (group creator)
+// generates the League join URL via the desktop LCU bridge and posts it here,
+// and the server fans it out to the other members over SSE.
+
+const readyGroupKey = (id: string) => `lobby:readygroup:${id}`;
+
+export interface ReadyGroup {
+  readyGroupId:     string;
+  hostUserId:       string;
+  memberUserIds:    string[];
+  joinUrl:          string | null;
+  voiceChannelUrl?: string;
+  createdAt:        number;
+}
+
+export async function createReadyGroup(
+  hostUserId:    string,
+  memberUserIds: string[],
+  voiceChannelUrl?: string
+): Promise<ReadyGroup> {
+  const readyGroupId = crypto.randomUUID();
+  const rg: ReadyGroup = {
+    readyGroupId, hostUserId, memberUserIds,
+    joinUrl: null, voiceChannelUrl, createdAt: Date.now(),
+  };
+  await redis.setex(readyGroupKey(readyGroupId), LOBBY_TTL, JSON.stringify(rg));
+  return rg;
+}
+
+export async function getReadyGroup(id: string): Promise<ReadyGroup | null> {
+  const raw = await redis.get(readyGroupKey(id));
+  return raw ? (JSON.parse(raw) as ReadyGroup) : null;
+}
+
+/** Sets the join URL once (first write wins). Returns the updated record, or null if missing. */
+export async function setReadyGroupJoinUrl(id: string, joinUrl: string): Promise<ReadyGroup | null> {
+  const rg = await getReadyGroup(id);
+  if (!rg) return null;
+  if (rg.joinUrl) return rg; // already set — don't overwrite
+  rg.joinUrl = joinUrl;
+  await redis.setex(readyGroupKey(id), LOBBY_TTL, JSON.stringify(rg));
+  return rg;
+}
+
 // ── Challenges ────────────────────────────────────────────────────────────────
 
 export async function createChallenge(
