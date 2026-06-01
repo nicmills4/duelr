@@ -37,9 +37,14 @@ jobs:
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
 
       # On a manual run: build (and sign, once configured) WITHOUT publishing a release.
+      # --publish never is required so electron-builder doesn't try to reach GitHub
+      # (its default "auto" attempts a publish/cleanup in CI and needs GH_TOKEN).
       - name: Build only (manual test)
         if: github.event_name == 'workflow_dispatch'
-        run: npm run dist:win --workspace=apps/desktop
+        working-directory: apps/desktop
+        run: |
+          npm run build
+          npx electron-builder --win --publish never
         env:
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
