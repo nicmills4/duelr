@@ -14,7 +14,7 @@ import { ALL_SLOTS, SLOT_ROLE, userSlotIn, groupIsFull } from "@/lib/lobby-types
 import {
   Swords, Users, CheckCircle2, XCircle, Loader2,
   Radio, RefreshCw, Clock, Filter, X, Shield,
-  UserPlus, LogOut, Crown, Copy, Check, Plus, LogIn,
+  UserPlus, LogOut, Crown, Copy, Check, Plus, LogIn, ExternalLink,
 } from "lucide-react";
 import { playQueuePop } from "@/lib/sounds";
 
@@ -55,6 +55,9 @@ interface GroupReadyResult {
   team1:            GroupSlot[];
   team2:            GroupSlot[];
   voiceChannelUrl?: string;
+  readyGroupId?:    string;
+  hostUserId?:      string;
+  joinUrl?:         string;
 }
 
 interface Props {
@@ -650,8 +653,17 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
           setGroups((prev) => prev.map((g) => g.groupId === updated.groupId ? updated : g));
         } else if (data.type === "group_ready") {
           playQueuePop();
-          setGroupReady({ team1: data.team1, team2: data.team2, voiceChannelUrl: data.voiceChannelUrl });
+          setGroupReady({
+            team1: data.team1, team2: data.team2, voiceChannelUrl: data.voiceChannelUrl,
+            readyGroupId: data.readyGroupId, hostUserId: data.hostUserId,
+          });
           setMyGroup(null);
+        } else if (data.type === "group_lobby_url") {
+          setGroupReady((prev) =>
+            prev && prev.readyGroupId === data.readyGroupId
+              ? { ...prev, joinUrl: data.joinUrl as string }
+              : prev
+          );
         } else if (data.type === "group_disbanded") {
           setMyGroup(null);
         } else if (data.type === "session_expired") {
@@ -697,6 +709,24 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
     }, 4000);
     return () => clearInterval(id);
   }, [matchResult?.matchId, matchResult?.lobbyJoinUrl, matchResult?.challengerPlatform]);
+
+  // ── Poll for the 2v2 group custom-game link (members, fallback if SSE missed) ─
+  // The host generates and pushes the link; everyone else polls until it lands.
+  useEffect(() => {
+    if (!groupReady?.readyGroupId || groupReady.joinUrl) return;
+    if (groupReady.hostUserId === userId) return; // host creates it, doesn't wait
+    const id = setInterval(async () => {
+      const res = await fetch(
+        `/api/lobby/group/lobby-url?readyGroupId=${groupReady.readyGroupId}`
+      ).catch(() => null);
+      if (!res?.ok) return;
+      const data = await res.json().catch(() => null);
+      if (data?.joinUrl) {
+        setGroupReady((prev) => prev ? { ...prev, joinUrl: data.joinUrl } : prev);
+      }
+    }, 4000);
+    return () => clearInterval(id);
+  }, [groupReady?.readyGroupId, groupReady?.joinUrl, groupReady?.hostUserId, userId]);
 
   // ── 1v1 actions ───────────────────────────────────────────────────────────────
 
@@ -826,6 +856,8 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
         team1: data.group.team1_adc && data.group.team1_support ? [data.group.team1_adc, data.group.team1_support] : [],
         team2: data.group.team2_adc && data.group.team2_support ? [data.group.team2_adc, data.group.team2_support] : [],
         voiceChannelUrl: data.voiceChannelUrl,
+        readyGroupId: data.readyGroupId,
+        hostUserId:   data.hostUserId,
       });
       setMyGroup(null);
     } else {
@@ -911,6 +943,46 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
             ))}
           </div>
         ))}
+        {/* ── Custom-game invite link — the host generates it from the desktop app ── */}
+        {groupReady.joinUrl ? (
+          <div className="bg-dark-700 border border-emerald-800/40 rounded-xl p-4 space-y-3">
+            <p className="text-xs font-semibold text-emerald-400 uppercase tracking-wide">Custom Game Join Link</p>
+            <div className="flex items-center gap-2 bg-dark-800 border border-dark-600 rounded-lg px-3 py-2">
+              <span className="text-xs text-gray-300 flex-1 truncate font-mono">{groupReady.joinUrl}</span>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(groupReady.joinUrl!);
+                  setCopiedJoinUrl(true);
+                  setTimeout(() => setCopiedJoinUrl(false), 2000);
+                }}
+                className="text-gold-400 hover:text-gold-300 flex-shrink-0"
+                title="Copy join link"
+              >
+                {copiedJoinUrl ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+              </button>
+            </div>
+            <a href={groupReady.joinUrl} target="_blank" rel="noopener noreferrer"
+              className="btn-primary w-full flex items-center justify-center gap-2 text-sm">
+              <ExternalLink className="w-4 h-4" /> Join Custom Game
+            </a>
+          </div>
+        ) : groupReady.hostUserId === userId ? (
+          <div className="bg-dark-700 border border-gold-400/30 rounded-xl p-4 space-y-1">
+            <p className="text-xs font-semibold text-gold-400 uppercase tracking-wide">You&apos;re the host</p>
+            <p className="text-xs text-gray-300">
+              Create a custom game in League, then generate the invite link from the{" "}
+              <span className="font-semibold text-gray-100">Duelr desktop app</span> — it appears here for your group automatically.
+            </p>
+          </div>
+        ) : (
+          <div className="bg-gold-400/10 border border-gold-400/40 rounded-xl p-4 flex items-center gap-3 animate-pulse-slow">
+            <Loader2 className="w-6 h-6 text-gold-400 animate-spin flex-shrink-0" />
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-gold-400">Waiting for the host…</p>
+              <p className="text-xs text-gray-400 mt-0.5">The host is creating the custom game — the join link will appear here automatically.</p>
+            </div>
+          </div>
+        )}
         {groupReady.voiceChannelUrl && (
           <DiscordVoiceButton url={groupReady.voiceChannelUrl} />
         )}
