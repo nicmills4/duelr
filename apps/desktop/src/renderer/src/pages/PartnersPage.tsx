@@ -10,7 +10,7 @@ import api from '../lib/api'
 import { ELO_BRACKETS } from '../lib/constants'
 import type { EloBracket } from '../lib/constants'
 import type { Champion } from '../lib/lobby-types'
-import { AVAILABILITY_SLOTS } from '../lib/partner-types'
+import { AVAILABILITY_SLOTS, PARTNER_LANES, LANE_ICON } from '../lib/partner-types'
 import type { PartnerPostPublic } from '../lib/partner-types'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -55,6 +55,24 @@ function ChampStrip({ champs, max = 8, size = 28 }: {
       {overflow > 0 && (
         <span className="text-[10px] text-gray-500 pl-0.5">+{overflow}</span>
       )}
+    </div>
+  )
+}
+
+function LanePills({ lanes }: { lanes: string[] }) {
+  const shown = PARTNER_LANES.filter((l) => lanes.includes(l))
+  if (shown.length === 0) return null
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {shown.map((lane) => (
+        <span
+          key={lane}
+          className="flex items-center gap-1 text-[10px] bg-dark-700 border border-dark-600 text-gray-300 rounded-full px-2 py-0.5"
+        >
+          <img src={LANE_ICON[lane]} alt={lane} width={12} height={12} />
+          {lane}
+        </span>
+      ))}
     </div>
   )
 }
@@ -118,6 +136,13 @@ function PostCard({ post, isOwn, onEdit, onDelete }: {
           </div>
         )}
       </div>
+
+      {post.lanes.length > 0 && (
+        <div>
+          <p className="text-[10px] text-gray-600 uppercase tracking-wide mb-1">Lane</p>
+          <LanePills lanes={post.lanes} />
+        </div>
+      )}
 
       {post.myChampions.length > 0 && (
         <div>
@@ -210,6 +235,7 @@ function ChampSearch({ champions, excluded, onPick, placeholder }: {
 interface FormState {
   myChampions:  string[]
   vsChampions:  string[]
+  lanes:        string[]
   eloBracket:   EloBracket
   availability: string[]
   notes:        string
@@ -222,7 +248,7 @@ function PostForm({ champions, initial, onSave, onCancel }: {
   onCancel: () => void
 }) {
   const [form, setForm] = useState<FormState>(
-    initial ?? { myChampions: [], vsChampions: [], eloBracket: 'mid', availability: [], notes: '' }
+    initial ?? { myChampions: [], vsChampions: [], lanes: [], eloBracket: 'mid', availability: [], notes: '' }
   )
   const [saving, setSaving] = useState(false)
   const [err, setErr]       = useState('')
@@ -233,6 +259,15 @@ function PostForm({ champions, initial, onSave, onCancel }: {
       availability: f.availability.includes(id)
         ? f.availability.filter((a) => a !== id)
         : [...f.availability, id],
+    }))
+  }
+
+  function toggleLane(lane: string) {
+    setForm((f) => ({
+      ...f,
+      lanes: f.lanes.includes(lane)
+        ? f.lanes.filter((l) => l !== lane)
+        : [...f.lanes, lane],
     }))
   }
 
@@ -302,6 +337,31 @@ function PostForm({ champions, initial, onSave, onCancel }: {
             onPick={(id) => setForm((f) => ({ ...f, vsChampions: [...f.vsChampions, id] }))}
           />
         )}
+      </div>
+
+      {/* Lanes */}
+      <div>
+        <label className="label">Lane <span className="text-gray-600 font-normal">(optional)</span></label>
+        <div className="flex flex-wrap gap-2">
+          {PARTNER_LANES.map((lane) => {
+            const active = form.lanes.includes(lane)
+            return (
+              <button
+                key={lane}
+                type="button"
+                onClick={() => toggleLane(lane)}
+                className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs transition-all ${
+                  active
+                    ? 'border-gold-400 bg-gold-400/10 text-gold-400'
+                    : 'border-dark-600 text-gray-400 hover:border-gray-500'
+                }`}
+              >
+                <img src={LANE_ICON[lane]} alt={lane} width={16} height={16} />
+                <span className="font-medium">{lane}</span>
+              </button>
+            )
+          })}
+        </div>
       </div>
 
       {/* Elo */}
@@ -458,6 +518,7 @@ export default function PartnersPage() {
     return {
       myChampions:  p.myChampions.map((c) => c.id),
       vsChampions:  p.vsChampions.map((c) => c.id),
+      lanes:        p.lanes,
       eloBracket:   p.eloBracket as EloBracket,
       availability: p.availability,
       notes:        p.notes ?? '',

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { ELO_BRACKETS } from "@/lib/constants";
-import { AVAILABILITY_SLOTS } from "@/lib/partner-types";
+import { AVAILABILITY_SLOTS, PARTNER_LANES } from "@/lib/partner-types";
 import type { PartnerPostPublic, ChampEntry } from "@/lib/partner-types";
 import { PARTNERS_REQUIRE_PREMIUM } from "@/lib/feature-flags";
 
@@ -10,6 +10,7 @@ export const dynamic = "force-dynamic";
 
 const VALID_BRACKETS  = new Set(ELO_BRACKETS.map((b) => b.value));
 const VALID_AVAIL     = new Set<string>(AVAILABILITY_SLOTS.map((s) => s.id));
+const VALID_LANES     = new Set<string>(PARTNER_LANES);
 const CHAMPION_RE     = /^[a-zA-Z0-9]{1,50}$/;
 
 function parseJson(raw: string): string[] {
@@ -59,6 +60,7 @@ export async function GET() {
         eloBracketLabel:  bracketLabel,
         myChampions:      toChampEntries(parseJson(p.myChampions), imgBase),
         vsChampions:      toChampEntries(parseJson(p.vsChampions), imgBase),
+        lanes:            parseJson(p.lanes),
         availability:     parseJson(p.availability),
         notes:            p.notes ?? null,
         createdAt:        p.createdAt.toISOString(),
@@ -88,7 +90,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   if (!body) return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
 
-  const { myChampions, vsChampions, eloBracket, availability, notes } = body;
+  const { myChampions, vsChampions, eloBracket, availability, lanes, notes } = body;
 
   // ── Validate ──────────────────────────────────────────────────────────────
   if (!Array.isArray(myChampions) || myChampions.length === 0)
@@ -109,6 +111,10 @@ export async function POST(req: NextRequest) {
     ? availability.filter((a: string) => VALID_AVAIL.has(a))
     : [];
 
+  const validLanes: string[] = Array.isArray(lanes)
+    ? PARTNER_LANES.filter((l) => lanes.includes(l))
+    : [];
+
   if (typeof notes === "string" && notes.length > 300)
     return NextResponse.json({ error: "Notes max 300 characters" }, { status: 400 });
 
@@ -121,6 +127,7 @@ export async function POST(req: NextRequest) {
       vsChampions:  JSON.stringify(vsChampions ?? []),
       eloBracket,
       availability: JSON.stringify(avail),
+      lanes:        JSON.stringify(validLanes),
       notes:        notes?.trim() || null,
     },
     update: {
@@ -128,6 +135,7 @@ export async function POST(req: NextRequest) {
       vsChampions:  JSON.stringify(vsChampions ?? []),
       eloBracket,
       availability: JSON.stringify(avail),
+      lanes:        JSON.stringify(validLanes),
       notes:        notes?.trim() || null,
     },
   });

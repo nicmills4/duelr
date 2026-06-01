@@ -8,6 +8,19 @@ export const AVAILABILITY_SLOTS = [
 
 export type AvailabilitySlot = (typeof AVAILABILITY_SLOTS)[number]["id"];
 
+// Lanes a partner can flag — same set a coach picks for "Specializes in",
+// using the same role icons the coaching board renders.
+export const PARTNER_LANES = ["Top", "Jungle", "Mid", "Bot", "Support"] as const;
+export type PartnerLane = (typeof PARTNER_LANES)[number];
+
+export const LANE_ICON: Record<string, string> = {
+  Top:     "/top.png",
+  Jungle:  "/jungle.png",
+  Mid:     "/mid.png",
+  Bot:     "/bot.png",
+  Support: "/support.png",
+};
+
 export interface ChampEntry {
   id: string;
   imageUrl: string;
@@ -22,6 +35,7 @@ export interface PartnerPostPublic {
   eloBracketLabel: string;
   myChampions: ChampEntry[];
   vsChampions: ChampEntry[];
+  lanes: string[];
   availability: string[];
   notes: string | null;
   createdAt: string;

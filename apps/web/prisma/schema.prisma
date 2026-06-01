@@ -66,6 +66,7 @@ model PartnerPost {
   vsChampions  String   // JSON string[] — champions they want to face
   eloBracket   String   // "low" | "mid" | "high" | "elite" | "apex"
   availability String   // JSON string[] — e.g. ["evening","weekends"]
+  lanes        String   @default("[]") // JSON string[] — "Top"|"Jungle"|"Mid"|"Bot"|"Support"
   notes        String?  // optional free-text, max 300 chars
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
