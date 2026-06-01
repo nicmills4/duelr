@@ -9,9 +9,16 @@ import { useLcu } from '../hooks/useLcu'
 import ChampionSelector from '../components/ChampionSelector'
 import PlayerCard from '../components/PlayerCard'
 import { RankCrest } from '../components/LcuProfilePanels'
+import {
+  GroupCreateForm, GroupCard, MyGroupPanel, GroupReadyScreen, type GroupReady,
+} from '../components/LobbyGroups'
 import api from '../lib/api'
 import { ELO_BRACKETS, type EloBracket } from '../lib/constants'
-import type { Champion, LobbyPlayer, AcceptsType, ChallengePayload } from '../lib/lobby-types'
+import type {
+  Champion, LobbyPlayer, AcceptsType, ChallengePayload,
+  LobbyMode, LobbyGroup, SlotKey, GroupSlot,
+} from '../lib/lobby-types'
+import { userSlotIn } from '../lib/lobby-types'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -52,6 +59,16 @@ export default function LobbyPage() {
   // ── Lobby state
   const [players, setPlayers]               = useState<LobbyPlayer[]>([])
   const [phase, setPhase]                   = useState<LobbyPhase>({ kind: 'idle' })
+
+  // ── 2v2 state
+  const [mode, setMode]                     = useState<LobbyMode>('1v1')
+  const [groups, setGroups]                 = useState<LobbyGroup[]>([])
+  const [myGroup, setMyGroup]               = useState<LobbyGroup | null>(null)
+  const [groupReady, setGroupReady]         = useState<GroupReady | null>(null)
+  const [groupCreating, setGroupCreating]   = useState(false)
+  const [groupErr, setGroupErr]             = useState('')
+  const [leavingGroup, setLeavingGroup]     = useState(false)
+  const [joiningSlot, setJoiningSlot]       = useState<SlotKey | null>(null)
   const [submitting, setSubmitting]         = useState(false)
   const [error, setError]                   = useState('')
   const [copied, setCopied]                 = useState(false)
@@ -108,8 +125,12 @@ export default function LobbyPage() {
   // ── Fetch player list ──────────────────────────────────────────────────────
 
   const fetchPlayers = useCallback(async () => {
-    const { data } = await api.get<{ players?: LobbyPlayer[] }>('/api/lobby/players')
+    const { data } = await api.get<{
+      players?: LobbyPlayer[]; groups?: LobbyGroup[]; myGroup?: LobbyGroup | null
+    }>('/api/lobby/players')
     if (data?.players) setPlayers(data.players)
+    setGroups(data?.groups ?? [])
+    setMyGroup(data?.myGroup ?? null)
   }, [])
 
   // Poll every 3 s
@@ -253,6 +274,25 @@ export default function LobbyPage() {
           setPhase((p) =>
             p.kind === 'matched' ? { ...p, lobbyJoinUrl: data.joinUrl as string } : p
           )
+        } else if (data.type === 'group_updated') {
+          const updated = data.group as LobbyGroup
+          setMyGroup((prev) => prev?.groupId === updated.groupId ? updated : prev)
+          setGroups((prev) => prev.map((g) => g.groupId === updated.groupId ? updated : g))
+        } else if (data.type === 'group_ready') {
+          setGroupReady({
+            team1: data.team1, team2: data.team2, voiceChannelUrl: data.voiceChannelUrl,
+            readyGroupId: data.readyGroupId, hostUserId: data.hostUserId,
+          })
+          setMyGroup(null)
+          window.duelr.notify('2v2 group ready!', 'All 4 players are in — set up your custom game.')
+        } else if (data.type === 'group_lobby_url') {
+          setGroupReady((prev) =>
+            prev && prev.readyGroupId === data.readyGroupId
+              ? { ...prev, joinUrl: data.joinUrl as string }
+              : prev
+          )
+        } else if (data.type === 'group_disbanded') {
+          setMyGroup(null)
         }
       } catch { /* ignore */ }
     }
@@ -288,6 +328,25 @@ export default function LobbyPage() {
     }, 5000)
     return () => clearInterval(id)
   }, [polledMatchId, existingJoinUrl, pollForJoinUrl])
+
+  // ── Poll for the 2v2 group custom-game link (members, SSE fallback) ─────────
+
+  const readyGroupId   = groupReady?.readyGroupId ?? null
+  const readyJoinUrl   = groupReady?.joinUrl ?? null
+  const readyIsHost    = !!groupReady && groupReady.hostUserId === user?.id
+
+  useEffect(() => {
+    if (!readyGroupId || readyJoinUrl || readyIsHost) return
+    const id = setInterval(async () => {
+      const { data } = await api.get<{ joinUrl?: string | null }>(
+        `/api/lobby/group/lobby-url?readyGroupId=${readyGroupId}`
+      )
+      if (data?.joinUrl) {
+        setGroupReady((prev) => prev ? { ...prev, joinUrl: data.joinUrl! } : prev)
+      }
+    }, 4000)
+    return () => clearInterval(id)
+  }, [readyGroupId, readyJoinUrl, readyIsHost])
 
   // ── Actions ────────────────────────────────────────────────────────────────
 
@@ -414,10 +473,65 @@ export default function LobbyPage() {
     goUnavailable()
   }
 
+  // ── 2v2 actions ──────────────────────────────────────────────────────────────
+
+  async function createGroup(slotKey: SlotKey, champId: string, elo: EloBracket) {
+    const champ = champById(champions, champId)
+    if (!champ) { setGroupErr('Select a champion first.'); return }
+    setGroupErr(''); setGroupCreating(true)
+    const { ok, data } = await api.post<{ group?: LobbyGroup; error?: string }>(
+      '/api/lobby/group/create',
+      { slotKey, champId: champ.id, champName: champ.name, champImage: champ.imageUrl, eloBracket: elo },
+    )
+    setGroupCreating(false)
+    if (ok && data?.group) {
+      setMyGroup(data.group)
+      fetchPlayers()
+    } else {
+      setGroupErr(data?.error ?? 'Failed to create group.')
+    }
+  }
+
+  async function joinGroupSlot(groupId: string, slotKey: SlotKey, champId: string) {
+    const champ = champById(champions, champId)
+    if (!champ) return
+    setJoiningSlot(slotKey)
+    const { ok, data } = await api.post<{
+      group?: LobbyGroup; isFull?: boolean; voiceChannelUrl?: string
+      readyGroupId?: string; hostUserId?: string; error?: string
+    }>('/api/lobby/group/join', {
+      groupId, slotKey, champId: champ.id, champName: champ.name, champImage: champ.imageUrl,
+    })
+    setJoiningSlot(null)
+    if (!ok || !data?.group) { setGroupErr(data?.error ?? 'Failed to join slot.'); return }
+    if (data.isFull) {
+      const g = data.group
+      setGroupReady({
+        team1: [g.team1_adc, g.team1_support].filter(Boolean) as GroupSlot[],
+        team2: [g.team2_adc, g.team2_support].filter(Boolean) as GroupSlot[],
+        voiceChannelUrl: data.voiceChannelUrl,
+        readyGroupId:    data.readyGroupId,
+        hostUserId:      data.hostUserId,
+      })
+      setMyGroup(null)
+    } else {
+      setMyGroup(data.group)
+    }
+    fetchPlayers()
+  }
+
+  async function leaveGroup() {
+    setLeavingGroup(true)
+    await api.post('/api/lobby/group/leave')
+    setMyGroup(null)
+    setLeavingGroup(false)
+    fetchPlayers()
+  }
+
   // ── Derived values ─────────────────────────────────────────────────────────
 
   const myChamp  = champById(champions, myChampId)
-  const isBusy   = phase.kind !== 'idle' && phase.kind !== 'available'
+  const isBusy   = (phase.kind !== 'idle' && phase.kind !== 'available') || !!myGroup
   // Exclude self. Match on id AND riotId — riotId is a reliable fallback for the
   // brief window after a fresh login before /api/me hydrates a real user.id.
   const otherPlayers = players.filter(
@@ -436,6 +550,20 @@ export default function LobbyPage() {
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
+  // 2v2 group ready takes over the whole view (mirrors the web flow)
+  if (groupReady) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-6">
+        <GroupReadyScreen
+          ready={groupReady}
+          userId={user?.id ?? null}
+          onJoinUrl={(url) => setGroupReady((prev) => prev ? { ...prev, joinUrl: url } : prev)}
+          onDone={() => { setGroupReady(null); fetchPlayers() }}
+        />
+      </div>
+    )
+  }
+
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
 
@@ -452,6 +580,37 @@ export default function LobbyPage() {
           Mark yourself available — other players can see you and send a direct challenge.
         </p>
       </div>
+
+      {/* ── 2v2: mode toggle ──────────────────────────────────────────────── */}
+      {user && phase.kind === 'idle' && !myGroup && (
+        <div className="flex rounded-xl overflow-hidden border border-dark-600 w-fit">
+          {(['1v1', '2v2'] as LobbyMode[]).map((m) => (
+            <button key={m} type="button" onClick={() => setMode(m)}
+              className={`px-5 py-2 text-sm font-semibold transition-colors ${
+                mode === m ? 'bg-gold-400/10 text-gold-400' : 'text-gray-500 hover:text-gray-300'
+              }`}>
+              {m === '1v1' ? '1v1 · Solo' : '2v2 · Bot Lane'}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* ── 2v2: my group status ──────────────────────────────────────────── */}
+      {myGroup && user && (
+        <MyGroupPanel group={myGroup} userId={user.id} onLeave={leaveGroup} leaving={leavingGroup} />
+      )}
+
+      {/* ── 2v2: create group form ────────────────────────────────────────── */}
+      {user && phase.kind === 'idle' && mode === '2v2' && !myGroup && (
+        <div className="card space-y-5">
+          <GroupCreateForm
+            champions={champions}
+            creating={groupCreating}
+            error={groupErr}
+            onCreate={createGroup}
+          />
+        </div>
+      )}
 
       {/* ── MATCH FOUND ───────────────────────────────────────────────────── */}
       {phase.kind === 'matched' && (
@@ -750,7 +909,7 @@ export default function LobbyPage() {
       )}
 
       {/* ── LOBBY FORM (idle) ──────────────────────────────────────────────── */}
-      {user && phase.kind === 'idle' && (
+      {user && phase.kind === 'idle' && mode === '1v1' && !myGroup && (
         <div className="card space-y-5">
           <h2 className="font-semibold text-white text-sm uppercase tracking-wide">Post your lobby</h2>
 
@@ -908,6 +1067,32 @@ export default function LobbyPage() {
             <LogIn className="w-4 h-4" />
             Log in to play
           </button>
+        </div>
+      )}
+
+      {/* ── 2v2: open groups ──────────────────────────────────────────────── */}
+      {groups.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Swords className="w-4 h-4 text-gold-400" />
+            <h2 className="font-semibold text-white flex items-center gap-2">
+              Open 2v2 Groups
+              <span className="text-sm text-gray-600 font-normal">({groups.length})</span>
+            </h2>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {groups.map((g) => (
+              <GroupCard
+                key={g.groupId}
+                group={g}
+                userId={user?.id ?? null}
+                champions={champions}
+                canJoin={!!user && phase.kind === 'idle' && !myGroup && !userSlotIn(g, user?.id ?? '')}
+                joiningSlot={joiningSlot}
+                onJoinSlot={(slotKey, champId) => joinGroupSlot(g.groupId, slotKey, champId)}
+              />
+            ))}
+          </div>
         </div>
       )}
 
