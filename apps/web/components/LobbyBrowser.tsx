@@ -645,6 +645,12 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
           fetch("/api/lobby/pending-match").catch(() => {});
         } else if (data.type === "challenge_declined") {
           setOutgoing(null);
+        } else if (data.type === "challenge_cancelled") {
+          // Challenger withdrew — clear the incoming card so we don't offer an
+          // Accept that would 404.
+          setIncoming((prev) =>
+            prev?.challengeId === data.challengeId ? null : prev
+          );
         } else if (data.type === "lobby_url") {
           setMatchResult((prev) => prev ? { ...prev, lobbyJoinUrl: data.joinUrl as string } : prev);
         } else if (data.type === "group_updated") {
@@ -786,6 +792,19 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
     setChallenging(null);
     if (!res.ok) { setChallengeErr(data.error ?? "Failed to send challenge"); return; }
     setOutgoing({ challengeId: data.challengeId, targetRiotId: player.riotId, targetChampName: player.champName, expiresAt: Date.now() + 45_000 });
+  }
+
+  async function cancelOutgoing() {
+    const challengeId = outgoing?.challengeId;
+    setOutgoing(null);
+    if (!challengeId) return;
+    // Withdraw server-side so the target can't accept a challenge we cancelled.
+    // Fire-and-forget: if it already expired/was accepted, SSE carries the truth.
+    fetch("/api/lobby/challenge/cancel", {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ challengeId }),
+    }).catch(() => {});
   }
 
   async function respondToChallenge(accept: boolean) {
@@ -1348,7 +1367,7 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
                 <div className="flex items-center gap-2 text-xs text-gray-600 ml-2 flex-shrink-0">
                   <Clock className="w-3 h-3" />
                   {outgoingCountdown}s
-                  <button onClick={() => setOutgoing(null)} className="text-gray-600 hover:text-red-400 transition-colors ml-1">
+                  <button onClick={cancelOutgoing} className="text-gray-600 hover:text-red-400 transition-colors ml-1">
                     Cancel
                   </button>
                 </div>
