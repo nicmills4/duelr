@@ -1,33 +1,25 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Loader2, Radio, CheckCircle, XCircle, Swords,
   LogIn, Copy, ExternalLink, Clock, Users, AlertTriangle,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
+import { useLobby } from '../context/LobbyContext'
 import { useLcu } from '../hooks/useLcu'
 import ChampionSelector from '../components/ChampionSelector'
 import PlayerCard from '../components/PlayerCard'
 import { RankCrest } from '../components/LcuProfilePanels'
 import {
-  GroupCreateForm, GroupCard, MyGroupPanel, GroupReadyScreen, type GroupReady,
+  GroupCreateForm, GroupCard, MyGroupPanel, GroupReadyScreen,
 } from '../components/LobbyGroups'
 import api from '../lib/api'
 import { ELO_BRACKETS, type EloBracket } from '../lib/constants'
 import type {
-  Champion, LobbyPlayer, AcceptsType, ChallengePayload,
+  Champion, LobbyPlayer, AcceptsType,
   LobbyMode, LobbyGroup, SlotKey, GroupSlot,
 } from '../lib/lobby-types'
 import { userSlotIn } from '../lib/lobby-types'
-
-// ── Types ──────────────────────────────────────────────────────────────────────
-
-type LobbyPhase =
-  | { kind: 'idle' }
-  | { kind: 'available'; expiresAt: number }
-  | { kind: 'challenging'; targetRiotId: string; challengeId: string }
-  | { kind: 'challenged'; payload: ChallengePayload }
-  | { kind: 'matched'; opponentRiotId: string; voiceChannelUrl?: string; matchId: string; lobbyJoinUrl?: string; role: 'challenger' | 'challenged'; challengerPlatform: 'web' | 'desktop' }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -46,6 +38,16 @@ export default function LobbyPage() {
   const navigate = useNavigate()
   const lcu      = useLcu()
 
+  // App-level lobby state — the SSE stream, EOG reporting, and tray sync live
+  // in LobbyProvider so they keep working while the user is on other pages.
+  const {
+    phase, setPhase,
+    groups, setGroups,
+    myGroup, setMyGroup,
+    groupReady, setGroupReady,
+    reportState, setReportState,
+  } = useLobby()
+
   // ── Champion data
   const [champions, setChampions]           = useState<Champion[]>([])
   const [champLoading, setChampLoading]     = useState(true)
@@ -58,13 +60,9 @@ export default function LobbyPage() {
 
   // ── Lobby state
   const [players, setPlayers]               = useState<LobbyPlayer[]>([])
-  const [phase, setPhase]                   = useState<LobbyPhase>({ kind: 'idle' })
 
   // ── 2v2 state
   const [mode, setMode]                     = useState<LobbyMode>('1v1')
-  const [groups, setGroups]                 = useState<LobbyGroup[]>([])
-  const [myGroup, setMyGroup]               = useState<LobbyGroup | null>(null)
-  const [groupReady, setGroupReady]         = useState<GroupReady | null>(null)
   const [groupCreating, setGroupCreating]   = useState(false)
   const [groupErr, setGroupErr]             = useState('')
   const [leavingGroup, setLeavingGroup]     = useState(false)
@@ -74,15 +72,6 @@ export default function LobbyPage() {
   const [copied, setCopied]                 = useState(false)
   const [creatingLobby, setCreatingLobby]   = useState(false)
   const [lobbyDebug, setLobbyDebug]         = useState('')
-  const [reportState, setReportState]       = useState<
-    | { status: 'idle' }
-    | { status: 'reporting' }
-    | { status: 'reported'; result: 'win' | 'loss' }
-    | { status: 'failed' }   // LCU couldn't detect first blood, or submit failed
-  >({ status: 'idle' })
-
-  // SSE connection ref
-  const esRef = useRef<EventSource | null>(null)
 
   // ── Load champion list ─────────────────────────────────────────────────────
 
@@ -151,161 +140,12 @@ export default function LobbyPage() {
     }).catch(() => { /* ignore */ })
   }, [user])
 
-  // ── Register active match with main process for EOG auto-reporting ─────────
+  // ── Clear stale page-local errors when a match starts ──────────────────────
+  // (The match itself may be set by the SSE handler in LobbyProvider.)
 
   useEffect(() => {
-    const matchId = phase.kind === 'matched' ? phase.matchId : null
-    window.duelr.match.setActive(matchId)
-  // Depend on the actual matchId string (null when not in matched phase)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase.kind === 'matched' ? phase.matchId : null])
-
-  // ── Sync tray status with lobby phase ────────────────────────────────────
-
-  useEffect(() => {
-    switch (phase.kind) {
-      case 'available':
-        window.duelr.tray.setStatus({ kind: 'available' })
-        break
-      case 'matched':
-        window.duelr.tray.setStatus({ kind: 'matched', opponent: phase.opponentRiotId })
-        break
-      case 'idle':
-      case 'challenging':
-      case 'challenged':
-        window.duelr.tray.setStatus({ kind: 'idle' })
-        break
-    }
+    if (phase.kind === 'matched') setError('')
   }, [phase.kind])
-
-  // ── Listen for end-of-game result from main process ──────────────────────
-
-  useEffect(() => {
-    window.duelr.lcu.onEogResult(async ({ matchId, result, myChampion, oppChampion }) => {
-      // No manual fallback exists — the LCU first-blood read is the only source
-      // of truth. If it couldn't determine a result, the match isn't recorded.
-      if (!result) {
-        setReportState({ status: 'failed' })
-        return
-      }
-
-      setReportState({ status: 'reporting' })
-
-      // Retry a few times to ride out transient network/server errors, since the
-      // player has no way to re-submit by hand. Champions are sent alongside the
-      // result so the Match record reflects what was actually played.
-      for (let attempt = 0; attempt < 3; attempt++) {
-        try {
-          const { ok } = await api.post(`/api/match/${matchId}/report`, {
-            result,
-            myChampion,
-            oppChampion,
-          })
-          if (ok) {
-            setReportState({ status: 'reported', result })
-            window.duelr.notify(
-              result === 'win' ? 'Victory recorded!' : 'Defeat recorded',
-              'Result auto-detected from first blood.'
-            )
-            return
-          }
-        } catch {
-          // fall through to retry
-        }
-        await new Promise((r) => setTimeout(r, 1500))
-      }
-
-      setReportState({ status: 'failed' })
-    })
-
-    return () => {
-      window.duelr.lcu.offEogResult()
-    }
-  }, [])
-
-  // ── SSE — real-time challenge / match notifications ────────────────────────
-
-  useEffect(() => {
-    if (!user) return
-
-    const es = new EventSource('https://playduelr.gg/api/notifications/stream', {
-      withCredentials: true,
-    })
-    esRef.current = es
-
-    // The stream sends unnamed data: events — use onmessage, not addEventListener
-    es.onmessage = (e: MessageEvent) => {
-      try {
-        const data = JSON.parse(e.data)
-
-        if (data.type === 'challenge') {
-          const payload = data as ChallengePayload
-          setPhase({ kind: 'challenged', payload })
-          window.duelr.notify(
-            'Challenge received!',
-            `${payload.challengerRiotId} wants to 1v1 as ${payload.challengerChampName}`
-          )
-        } else if (data.type === 'challenge_accepted') {
-          // Sent to the challenger when the responder accepts
-          const opp = data.opponent as {
-            riotId: string; matchId: string; voiceChannelUrl?: string
-          }
-          setPhase({
-            kind: 'matched',
-            role: 'challenger',
-            // This is the desktop app issuing the challenge, so the challenger
-            // (us) is always on desktop — lobby links are supported.
-            challengerPlatform: 'desktop',
-            matchId: opp.matchId,
-            opponentRiotId: opp.riotId,
-            voiceChannelUrl: opp.voiceChannelUrl,
-          })
-          setError('')
-          window.duelr.notify('Match found!', `vs ${opp.riotId}`)
-          // Voice join is manual — user clicks "Join Discord Voice" in the matched card.
-        } else if (data.type === 'challenge_declined') {
-          setPhase((p) =>
-            p.kind === 'challenging'
-              ? { kind: 'available', expiresAt: Date.now() + 3600_000 }
-              : p
-          )
-        } else if (data.type === 'lobby_url') {
-          // Opponent set the custom game join URL — update our phase
-          setPhase((p) =>
-            p.kind === 'matched' ? { ...p, lobbyJoinUrl: data.joinUrl as string } : p
-          )
-        } else if (data.type === 'group_updated') {
-          const updated = data.group as LobbyGroup
-          setMyGroup((prev) => prev?.groupId === updated.groupId ? updated : prev)
-          setGroups((prev) => prev.map((g) => g.groupId === updated.groupId ? updated : g))
-        } else if (data.type === 'group_ready') {
-          setGroupReady({
-            team1: data.team1, team2: data.team2, voiceChannelUrl: data.voiceChannelUrl,
-            readyGroupId: data.readyGroupId, hostUserId: data.hostUserId,
-          })
-          setMyGroup(null)
-          window.duelr.notify('2v2 group ready!', 'All 4 players are in — set up your custom game.')
-        } else if (data.type === 'group_lobby_url') {
-          setGroupReady((prev) =>
-            prev && prev.readyGroupId === data.readyGroupId
-              ? { ...prev, joinUrl: data.joinUrl as string }
-              : prev
-          )
-        } else if (data.type === 'group_disbanded') {
-          setMyGroup(null)
-        }
-      } catch { /* ignore */ }
-    }
-
-    es.onerror = () => {
-      // SSE error — the EventSource will auto-reconnect; nothing to do
-    }
-
-    return () => {
-      es.close()
-      esRef.current = null
-    }
-  }, [user])
 
   // ── Poll for lobbyJoinUrl when in matched state (SSE may have closed) ───────
 
@@ -424,6 +264,7 @@ export default function LobbyPage() {
         voiceChannelUrl: data.match.voiceChannelUrl,
       })
       setError('')
+      setReportState({ status: 'idle' })
       window.duelr.notify('Match confirmed!', `vs ${data.match.opponentRiotId} — set up your custom game`)
       // Voice join is manual — user clicks "Join Discord Voice" in the matched card.
     } else if (accept && ok && !data?.match) {
@@ -440,7 +281,21 @@ export default function LobbyPage() {
   }
 
   async function cancelChallenge() {
-    setPhase({ kind: 'available', expiresAt: Date.now() + 3600_000 })
+    if (phase.kind !== 'challenging') return
+    setSubmitting(true)
+    const { ok, status } = await api.post('/api/lobby/challenge/cancel', {
+      challengeId: phase.challengeId,
+    })
+    setSubmitting(false)
+    // 404 = already expired/declined/accepted — gone either way. If it was
+    // accepted in the race window, the challenge_accepted SSE event will
+    // flip us into the matched phase regardless of what we set here.
+    if (ok || status === 404) {
+      setPhase({ kind: 'available', expiresAt: Date.now() + 3600_000 })
+      setError('')
+    } else {
+      setError("Couldn't cancel the challenge — check your connection and try again.")
+    }
   }
 
   async function handleCreateLobby() {
@@ -460,7 +315,12 @@ export default function LobbyPage() {
       // Full success — lobby created and join URL obtained
       setPhase((p) => p.kind === 'matched' ? { ...p, lobbyJoinUrl: result.joinUrl! } : p)
       navigator.clipboard.writeText(result.joinUrl).catch(() => {})
-      api.patch(`/api/match/${phase.matchId}/lobby-url`, { joinUrl: result.joinUrl }).catch(() => {})
+      // This PATCH is what delivers the link to the opponent — if it fails
+      // silently, they wait forever on a spinner while we show "sent ✓".
+      const { ok } = await api.patch(`/api/match/${phase.matchId}/lobby-url`, { joinUrl: result.joinUrl })
+      if (!ok) {
+        setError("Couldn't send the link to your opponent automatically — it's copied to your clipboard, send it to them directly (e.g. in Discord voice chat).")
+      }
     } else {
       // Lobby was created but join URL couldn't be fetched — not a hard failure
       setError('Custom game created in League! Join URL unavailable — invite your opponent from inside League.')

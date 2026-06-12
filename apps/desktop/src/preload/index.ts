@@ -67,9 +67,13 @@ export interface DuelrAPI {
     quitAndInstall: () => Promise<void>
   }
   safeStorage: {
-    /** Encrypt a plaintext string via OS keychain. Returns base64 ciphertext. */
-    encrypt: (text: string) => Promise<string>
-    /** Decrypt a base64 ciphertext previously produced by encrypt. */
+    /**
+     * Encrypt a plaintext string via OS keychain. Returns base64 ciphertext,
+     * or null when OS encryption is unavailable — callers must NOT persist
+     * the secret in that case.
+     */
+    encrypt: (text: string) => Promise<string | null>
+    /** Decrypt a base64 ciphertext previously produced by encrypt. '' on failure. */
     decrypt: (ciphertext: string) => Promise<string>
   }
   window: {

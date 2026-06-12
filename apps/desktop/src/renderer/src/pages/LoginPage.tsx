@@ -77,10 +77,14 @@ export default function LoginPage() {
         setLoading(false)
         if (result === true) {
           navigate('/lobby')
+        } else if (result.status === 0 || result.status >= 500) {
+          // Server down / offline — NOT a credential problem. Keep the saved
+          // creds so a launch during a deploy window doesn't "log the user out".
+          setError("Couldn't reach Duelr — check your connection and sign in to retry.")
         } else {
           localStorage.removeItem(CREDS_KEY)
           setRememberMe(false)
-          setError(typeof result === 'string' ? result : 'Auto-login failed — please sign in again.')
+          setError(result.message || 'Auto-login failed — please sign in again.')
         }
       })
     } else if (saved.mode === 'full' && saved.email && saved.encryptedPassword) {
@@ -104,12 +108,19 @@ export default function LoginPage() {
         setLoading(false)
         if (result === true) {
           navigate('/lobby')
+        } else if (result.status === 0 || result.status >= 500) {
+          setError("Couldn't reach Duelr — check your connection and sign in to retry.")
         } else {
           localStorage.removeItem(CREDS_KEY)
           setRememberMe(false)
-          setError(typeof result === 'string' ? result : 'Auto-login failed — please sign in again.')
+          setError(result.message || 'Auto-login failed — please sign in again.')
         }
       })
+    } else if (saved.mode === 'full' && saved.email) {
+      // Email remembered but no stored password (OS encryption unavailable
+      // when saving) — prefill the email and let the user type the password.
+      setMode('full')
+      setEmail(saved.email)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -133,7 +144,7 @@ export default function LoginPage() {
       return
     }
 
-    let result: boolean | string = false
+    let result: Awaited<ReturnType<typeof loginGuest>>
     if (mode === 'guest') {
       if (!riotId.includes('#')) {
         setError('Enter your Riot ID in GameName#TAG format.')
@@ -141,10 +152,10 @@ export default function LoginPage() {
         return
       }
       result = await loginGuest(riotId.trim(), region)
-      if (result !== true) setError(typeof result === 'string' ? result : 'Riot ID not found or invalid. Check your GameName#TAG and region.')
+      if (result !== true) setError(result.message || 'Riot ID not found or invalid. Check your GameName#TAG and region.')
     } else {
       result = await loginFull(email.trim(), password)
-      if (result !== true) setError(typeof result === 'string' ? result : 'Invalid email or password.')
+      if (result !== true) setError(result.message || 'Invalid email or password.')
     }
 
     setLoading(false)
@@ -165,8 +176,12 @@ export default function LoginPage() {
       const creds: SavedCreds = { mode: 'guest', riotId: riotId.trim(), region }
       localStorage.setItem(CREDS_KEY, JSON.stringify(creds))
     } else {
+      // encrypt() returns null when OS encryption is unavailable. In that case
+      // remember the email only — never write the password to disk in clear.
       const encryptedPassword = await window.duelr.safeStorage.encrypt(password)
-      const creds: SavedCreds = { mode: 'full', email: email.trim(), encryptedPassword }
+      const creds: SavedCreds = encryptedPassword
+        ? { mode: 'full', email: email.trim(), encryptedPassword }
+        : { mode: 'full', email: email.trim() }
       localStorage.setItem(CREDS_KEY, JSON.stringify(creds))
     }
   }

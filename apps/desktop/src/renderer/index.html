@@ -3,6 +3,25 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      CSP: the renderer displays remote, player-influenced content (riot IDs,
+      champion images), so restrict where scripts run and — critically — where
+      data can be sent (connect-src), to blunt XSS exfiltration.
+      'unsafe-inline' in script-src is required by @vitejs/plugin-react's dev
+      preamble; remote script origins are still blocked.
+      ws://localhost is the dev HMR socket (inert in production).
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self';
+               script-src 'self' 'unsafe-inline';
+               style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+               font-src https://fonts.gstatic.com;
+               img-src 'self' data: https://playduelr.gg https://ddragon.leagueoflegends.com https://raw.communitydragon.org;
+               connect-src https://playduelr.gg ws://localhost:* http://localhost:*;
+               object-src 'none';
+               base-uri 'self'"
+    />
     <title>Duelr</title>
     <!-- Google Fonts: Exo 2 (body) + Bebas Neue (display/logo) -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />

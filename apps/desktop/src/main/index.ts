@@ -147,8 +147,8 @@ async function onLcuConnect(creds: LcuCreds, lockfilePath: string | null = null)
         )
       }
     },
-    onEndOfGame: () => {
-      handleEndOfGame()
+    onEndOfGame: (gameId) => {
+      handleEndOfGame(gameId)
     },
   })
 }
@@ -164,12 +164,12 @@ function onLcuDisconnect() {
   setTrayLcuConnected(false)
 }
 
-async function handleEndOfGame() {
+async function handleEndOfGame(finishedGameId: number | null) {
   const matchId = activeMatchId
   const creds   = currentLcuCreds
   if (!matchId || !creds) return
 
-  const { result, myChampion, oppChampion } = await getFirstBloodResult(creds)
+  const { result, myChampion, oppChampion } = await getFirstBloodResult(creds, finishedGameId)
   // Send to renderer whether we got a result or not — renderer handles both cases.
   // Champions reflect what was ACTUALLY played, to correct the indicated picks.
   mainWindow?.webContents.send('lcu:eog-result', { matchId, result, myChampion, oppChampion })
@@ -217,8 +217,13 @@ async function ensureLiveLcu(): Promise<LcuCreds | null> {
 // ── CORS / origin injection ──────────────────────────────────────────────────
 
 function setupCorsOverride(ses: Electron.Session) {
+  // Scope both interceptors to the API origin — without a urls filter they run
+  // on EVERY request the renderer makes, and a session-wide header rewrite is
+  // far more surface than this workaround needs.
+  const apiFilter = { urls: [`${API_ORIGIN}/*`] }
+
   // Inject Origin header so playduelr.gg CORS allows the request
-  ses.webRequest.onBeforeSendHeaders((details, callback) => {
+  ses.webRequest.onBeforeSendHeaders(apiFilter, (details, callback) => {
     const headers = { ...details.requestHeaders }
     if (details.url.startsWith(API_ORIGIN)) {
       headers['Origin'] = API_ORIGIN
@@ -228,7 +233,7 @@ function setupCorsOverride(ses: Electron.Session) {
   })
 
   // Allow credentials with the specific origin (not wildcard)
-  ses.webRequest.onHeadersReceived((details, callback) => {
+  ses.webRequest.onHeadersReceived(apiFilter, (details, callback) => {
     const headers = { ...details.responseHeaders }
     if (details.url.startsWith(API_ORIGIN)) {
       headers['access-control-allow-origin'] = [API_ORIGIN]
@@ -262,6 +267,14 @@ function setupIpc() {
   // Discord voice channel auto-join
   ipcMain.handle('discord:joinVoice', async (_, url: string) => {
     if (typeof url !== 'string') return
+    // Only accept Discord URLs — this handler must never become a generic
+    // "open arbitrary protocol" primitive for a compromised renderer.
+    const isDiscordUrl =
+      url.startsWith('discord://') ||
+      url.startsWith('https://discord.com/') ||
+      url.startsWith('https://discord.gg/')
+    if (!isDiscordUrl) return
+
     // Convert https Discord URLs to discord:// deep links so the app opens
     // directly without going through the browser invite page.
     // discord.gg/CODE and discord.com/invite/CODE both map to discord.com/invite/CODE
@@ -279,8 +292,9 @@ function setupIpc() {
     try {
       await shell.openExternal(discordUrl)
     } catch {
-      // discord:// not registered (Discord not installed) — fall back to browser
-      await shell.openExternal(url)
+      // discord:// not registered (Discord not installed) — fall back to the
+      // browser, but only ever with an https URL.
+      if (url.startsWith('https://')) await shell.openExternal(url)
     }
   })
 
@@ -289,15 +303,22 @@ function setupIpc() {
     showNotification(title, body)
   })
 
-  // Encrypt a string with the OS keychain (for saving passwords at rest)
-  ipcMain.handle('safe-storage:encrypt', (_, text: string): string => {
-    if (!safeStorage.isEncryptionAvailable()) return text
-    return safeStorage.encryptString(text).toString('base64')
+  // Encrypt a string with the OS keychain (for saving passwords at rest).
+  // Returns null when OS encryption is unavailable — the renderer must then
+  // SKIP persisting the secret. (Previously this returned the plaintext
+  // unchanged, silently storing the user's password in clear on disk.)
+  ipcMain.handle('safe-storage:encrypt', (_, text: string): string | null => {
+    if (!safeStorage.isEncryptionAvailable()) return null
+    try {
+      return safeStorage.encryptString(text).toString('base64')
+    } catch {
+      return null
+    }
   })
 
   // Decrypt a base64-encoded ciphertext produced by safe-storage:encrypt
   ipcMain.handle('safe-storage:decrypt', (_, ciphertext: string): string => {
-    if (!safeStorage.isEncryptionAvailable()) return ciphertext
+    if (!safeStorage.isEncryptionAvailable()) return ''
     try {
       return safeStorage.decryptString(Buffer.from(ciphertext, 'base64'))
     } catch {
@@ -368,7 +389,9 @@ function createWindow(): BrowserWindow {
     autoHideMenuBar: true,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
-      sandbox: false,
+      // OS-level renderer sandbox. The preload only uses contextBridge +
+      // ipcRenderer, which are sandbox-compatible.
+      sandbox: true,
       nodeIntegration: false,
       contextIsolation: true,
       // Disable CORS enforcement — the renderer only ever talks to playduelr.gg
@@ -397,10 +420,24 @@ function createWindow(): BrowserWindow {
     }
   })
 
-  // Open external links in the system browser, not in a new Electron window
+  // Open external links in the system browser, not in a new Electron window.
+  // Validate the scheme — shell.openExternal on Windows launches ANY registered
+  // protocol handler, so an unvalidated url here is a code-execution vector.
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url)
+    if (url.startsWith('https://') || url.startsWith('http://')) {
+      shell.openExternal(url)
+    }
     return { action: 'deny' }
+  })
+
+  // Never allow the window itself to navigate away from the app. A top-level
+  // navigation to a remote origin would run foreign content with the duelr
+  // preload bridge (safeStorage decrypt, shell.openExternal, …) attached.
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    const devUrl = process.env['ELECTRON_RENDERER_URL']
+    const allowed =
+      (is.dev && devUrl && url.startsWith(devUrl)) || url.startsWith('file://')
+    if (!allowed) event.preventDefault()
   })
 
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {

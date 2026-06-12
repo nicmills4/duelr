@@ -1,6 +1,7 @@
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { LcuProvider } from './context/LcuContext'
+import { LobbyProvider } from './context/LobbyContext'
 import NavBar from './components/NavBar'
 import UpdateBanner from './components/UpdateBanner'
 import LoginPage from './pages/LoginPage'
@@ -50,7 +51,10 @@ export default function App() {
     <HashRouter>
       <AuthProvider>
         <LcuProvider>
-          <AppRoutes />
+          {/* Lobby state is app-level so challenges + match results arrive on any page */}
+          <LobbyProvider>
+            <AppRoutes />
+          </LobbyProvider>
         </LcuProvider>
       </AuthProvider>
     </HashRouter>

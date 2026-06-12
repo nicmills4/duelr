@@ -10,11 +10,18 @@ export interface AuthUser {
   emailVerified?: boolean
 }
 
+/**
+ * `true` on success; otherwise the HTTP status + message so callers can tell
+ * a rejected login (4xx — clear saved creds) from a server/network failure
+ * (5xx / status 0 — keep creds and let the user retry).
+ */
+export type LoginResult = true | { status: number; message: string }
+
 interface AuthContextValue {
   user: AuthUser | null
   isLoading: boolean
-  loginGuest: (riotId: string, region: string) => Promise<boolean | string>
-  loginFull: (email: string, password: string) => Promise<boolean | string>
+  loginGuest: (riotId: string, region: string) => Promise<LoginResult>
+  loginFull: (email: string, password: string) => Promise<LoginResult>
   logout: () => Promise<void>
   /** Re-fetch /api/me and update the stored user with latest isPremium/emailVerified. */
   refreshProfile: () => Promise<void>
@@ -76,10 +83,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     checkSession()
   }, [])
 
-  async function loginGuest(riotId: string, region: string): Promise<boolean | string> {
-    const { data, ok } = await api.post<{ user?: AuthUser; userId?: string; riotId?: string; error?: string }>
+  async function loginGuest(riotId: string, region: string): Promise<LoginResult> {
+    const { data, ok, status } = await api.post<{ user?: AuthUser; userId?: string; riotId?: string; error?: string }>
       ('/api/auth/login', { riotId, region })
-    if (!ok) return (data as { error?: string })?.error ?? 'Login failed'
+    if (!ok) return { status, message: (data as { error?: string })?.error ?? 'Login failed' }
 
     const u: AuthUser = {
       id: data.userId ?? data.user?.id ?? '',
@@ -92,10 +99,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return true
   }
 
-  async function loginFull(email: string, password: string): Promise<boolean | string> {
-    const { data, ok } = await api.post<{ user?: AuthUser; userId?: string; riotId?: string; error?: string }>
+  async function loginFull(email: string, password: string): Promise<LoginResult> {
+    const { data, ok, status } = await api.post<{ user?: AuthUser; userId?: string; riotId?: string; error?: string }>
       ('/api/auth/login-email', { email, password })
-    if (!ok) return (data as { error?: string })?.error ?? 'Login failed'
+    if (!ok) return { status, message: (data as { error?: string })?.error ?? 'Login failed' }
 
     const u: AuthUser = {
       id: data.userId ?? data.user?.id ?? '',
@@ -111,7 +118,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function logout(): Promise<void> {
-    await api.post('/api/auth/logout')
+    // Best-effort server logout — always clear local state regardless, so the
+    // user is never stuck "logged in" when offline or the server errors.
+    await api.post('/api/auth/logout').catch(() => {})
     setUser(null)
     saveUser(null)
     // Signal the login page not to auto-login this session even if saved creds exist.

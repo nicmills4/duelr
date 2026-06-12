@@ -30,6 +30,14 @@ export interface ChallengePayload {
   targetId:             string
 }
 
+/** The 1v1 lobby state machine, driven by user actions and SSE events. */
+export type LobbyPhase =
+  | { kind: 'idle' }
+  | { kind: 'available'; expiresAt: number }
+  | { kind: 'challenging'; targetRiotId: string; challengeId: string }
+  | { kind: 'challenged'; payload: ChallengePayload }
+  | { kind: 'matched'; opponentRiotId: string; voiceChannelUrl?: string; matchId: string; lobbyJoinUrl?: string; role: 'challenger' | 'challenged'; challengerPlatform: 'web' | 'desktop' }
+
 export interface Champion {
   id:       string      // DDragon key, e.g. "Zed"
   name:     string      // display name

@@ -26,15 +26,17 @@ interface ChampSelectSession {
 
 // /lol-gameflow/v1/session — `gameData.isCustomGame` is the reliable custom-game
 // flag from champ select through in-game (the /lol-lobby endpoint 404s once you
-// leave the lobby for champ select).
+// leave the lobby for champ select). `gameData.gameId` identifies the live game
+// so the end-of-game reader can reject stale match-history entries.
 interface GameflowSession {
-  gameData?: { isCustomGame?: boolean }
+  gameData?: { isCustomGame?: boolean; gameId?: number }
 }
 
 export interface LcuEventHandlers {
   onPhase: (phase: string) => void
   onChampion: (ddragKey: string | null) => void
-  onEndOfGame: () => void
+  /** gameId of the game that just ended, or null if it couldn't be determined. */
+  onEndOfGame: (gameId: number | null) => void
 }
 
 export function connectLcuEvents(creds: LcuCreds, handlers: LcuEventHandlers): () => void {
@@ -58,10 +60,15 @@ export function connectLcuEvents(creds: LcuCreds, handlers: LcuEventHandlers): (
   // game is custom so we don't re-query LCU on every champ-select tick.
   // `null` = unknown (not yet fetched for this champ-select entry).
   let isCustomLobby: boolean | null = null
+  // gameId of the game currently in champ select / in progress. Match history
+  // lags behind game end, so the EOG reader needs this to verify it's reading
+  // the game that just ended and not the player's previous game.
+  let currentGameId: number | null = null
   async function refreshLobbyType(): Promise<boolean> {
     try {
       const s = await lcuGet<GameflowSession>('/lol-gameflow/v1/session', creds)
       isCustomLobby = s?.gameData?.isCustomGame === true
+      if (s?.gameData?.gameId) currentGameId = s.gameData.gameId
     } catch {
       isCustomLobby = false
     }
@@ -130,6 +137,9 @@ export function connectLcuEvents(creds: LcuCreds, handlers: LcuEventHandlers): (
       // Subscribe to all JSON API events
       ws!.send(JSON.stringify([5, 'OnJsonApiEvent']))
       await loadChampionMap()
+      // If this is a (re)connect mid-game, recapture the live gameId so an
+      // EndOfGame arriving after the reconnect can still be verified.
+      refreshLobbyType().catch(() => {})
     })
 
     ws.on('message', (raw) => {
@@ -150,11 +160,28 @@ export function connectLcuEvents(creds: LcuCreds, handlers: LcuEventHandlers): (
 
           if (phase === 'ChampSelect') {
             isCustomLobby = null // unknown until refreshed for this game
+            currentGameId = null
             handleChampSelect()
+          } else if (phase === 'InProgress') {
+            // Capture the live gameId in case champ select was skipped or the
+            // WS connected mid-flow.
+            refreshLobbyType().catch(() => {})
+            emitChampion(null)
           } else if (phase === 'EndOfGame') {
-            handlers.onEndOfGame()
+            const finishedGameId = currentGameId
+            currentGameId = null
             isCustomLobby = null
             emitChampion(null)
+            if (finishedGameId != null) {
+              handlers.onEndOfGame(finishedGameId)
+            } else {
+              // gameId never captured (WS connected after the game started and
+              // the open-handler refresh lost the race). The gameflow session is
+              // still live during EndOfGame — read the gameId from it now.
+              lcuGet<GameflowSession>('/lol-gameflow/v1/session', creds)
+                .then((s) => handlers.onEndOfGame(s?.gameData?.gameId ?? null))
+                .catch(() => handlers.onEndOfGame(null))
+            }
           } else {
             isCustomLobby = null
             emitChampion(null)

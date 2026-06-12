@@ -12,6 +12,14 @@ files:
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
 
+# Tray icons are loaded at runtime from process.resourcesPath/resources — they
+# must be shipped as extraResources (buildResources above is only a build-time
+# input dir). Without this the packaged app falls back to an EMPTY tray icon,
+# which makes the window unreachable after close-to-tray.
+extraResources:
+  - from: resources
+    to: resources
+
 # Windows-only for now. League/LCU runs on Windows + macOS; mac is a later phase
 # and gates on Apple signing + notarization, so it's intentionally omitted here.
 win:

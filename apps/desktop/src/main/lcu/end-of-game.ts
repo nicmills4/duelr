@@ -69,6 +69,7 @@ const EMPTY: EogReport = { result: null, myChampion: null, oppChampion: null }
 
 export async function getFirstBloodResult(
   creds: LcuCreds,
+  expectedGameId: number | null,
   attempts = 10,
   delayMs = 3000
 ): Promise<EogReport> {
@@ -97,14 +98,29 @@ export async function getFirstBloodResult(
       )
       const game = hist?.games?.games?.[0]
       if (game) {
-        const result = firstBloodFromGame(game, myPuuid)
-        console.log(
-          `[LCU][firstblood] attempt ${i + 1}: gameId=${game.gameId} type=${game.gameType ?? '?'} → ${result ?? 'no first blood yet'}`
-        )
-        if (result) {
-          const { my, opp } = championsFromGame(game, myPuuid, champMap)
-          console.log(`[LCU][firstblood] champions — me=${my ?? '?'} opp=${opp ?? '?'}`)
-          return { result, myChampion: my, oppChampion: opp }
+        // Match history lags behind game end — while it catches up, games[0]
+        // is the player's PREVIOUS game. Accepting it would record the wrong
+        // result under the current match, so verify the gameId. If we never
+        // learned the live gameId, only accept a custom game (duels are always
+        // custom) — a weaker filter, but better than dropping the result.
+        const isExpected =
+          expectedGameId != null
+            ? game.gameId === expectedGameId
+            : game.gameType === 'CUSTOM_GAME'
+        if (!isExpected) {
+          console.log(
+            `[LCU][firstblood] attempt ${i + 1}: gameId=${game.gameId} is not the finished game (expected ${expectedGameId ?? 'unknown/custom'}) — history not caught up yet`
+          )
+        } else {
+          const result = firstBloodFromGame(game, myPuuid)
+          console.log(
+            `[LCU][firstblood] attempt ${i + 1}: gameId=${game.gameId} type=${game.gameType ?? '?'} → ${result ?? 'no first blood yet'}`
+          )
+          if (result) {
+            const { my, opp } = championsFromGame(game, myPuuid, champMap)
+            console.log(`[LCU][firstblood] champions — me=${my ?? '?'} opp=${opp ?? '?'}`)
+            return { result, myChampion: my, oppChampion: opp }
+          }
         }
       } else {
         console.log(`[LCU][firstblood] attempt ${i + 1}: no game in history yet`)

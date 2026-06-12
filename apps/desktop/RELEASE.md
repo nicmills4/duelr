@@ -30,12 +30,29 @@ until then (it would publish unsigned).
 - Add deps: `electron-updater`, `electron-log`. Bump `electron-builder` to v26.
 - Add `dev-app-update.yml` for local update testing against a real release.
 
-## Phase 1 — Azure Trusted Signing  *(needs the Azure account — your part)*
-- Azure portal: Trusted Signing account + certificate profile (identity validation has a few days'
-  lead time — start first).
-- Service principal with the **Trusted Signing Certificate Profile Signer** role.
-- Fill `win.azureSignOptions` in `electron-builder.yml` (endpoint, account name, cert profile name).
-- GitHub secrets: `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`.
+## Phase 1 — Azure Trusted Signing  (gates the first signed release)
+
+Identity type chosen: **Public** validation (publicly-distributed app → publicly-trusted root).
+
+### Doable now — in parallel with the identity review
+1. **Service principal (CI auth).** Entra ID → App registrations → New registration
+   (e.g. `duelr-desktop-signing`). Record **Directory (tenant) ID** + **Application (client) ID**.
+   Certificates & secrets → New client secret → copy the **secret value** (shown once).
+2. **Grant signing rights.** Trusted Signing account → Access control (IAM) → Add role assignment →
+   **Trusted Signing Certificate Profile Signer** → assign to the app registration from step 1.
+   (Account scope is fine and works before the cert profile exists.)
+3. **GitHub secrets** (repo → Settings → Secrets and variables → Actions):
+   `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET` from step 1.
+
+### Blocked until the identity validation shows **Approved**
+4. Trusted Signing account → Certificate profiles → New → type **Public Trust** → note its name.
+5. Uncomment `win.azureSignOptions` in `electron-builder.yml` and fill:
+   - `endpoint` — account region endpoint, e.g. `https://eus.codesigning.azure.net/`
+   - `codeSigningAccountName` — the Trusted Signing account name
+   - `certificateProfileName` — the Public Trust profile (step 4)
+   - `publisherName` — the validated identity's common name (from the approved validation)
+6. **Dry run:** Actions → Desktop Release → Run workflow (manual dispatch) → builds + signs, no publish.
+7. **First release:** bump `apps/desktop/package.json` version → `git tag desktop-v0.2.0` → `git push --tags`.
 
 ## Phase 2 — CI/CD  ✅ done  (`.github/workflows/desktop-release.yml`)
 - Trigger: push of a `desktop-v*` tag (+ `workflow_dispatch`).

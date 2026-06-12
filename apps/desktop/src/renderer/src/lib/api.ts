@@ -16,15 +16,24 @@ async function request<T>(
   path: string,
   body?: unknown
 ): Promise<ApiResponse<T>> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    method,
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-    },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-    credentials: 'include',
-  })
+  let res: Response
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+      credentials: 'include',
+      signal: AbortSignal.timeout(15_000),
+    })
+  } catch {
+    // Network failure (offline, DNS, timeout, connection reset). Return a
+    // synthetic non-ok response so callers' `!ok` paths handle it — fetch
+    // rejecting here must never propagate as a throw to UI code.
+    return { data: null as T, status: 0, ok: false }
+  }
 
   let data: T
   try {
