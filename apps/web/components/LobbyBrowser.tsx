@@ -17,6 +17,7 @@ import {
   UserPlus, LogOut, Crown, Copy, Check, Plus, LogIn, ExternalLink,
 } from "lucide-react";
 import { playQueuePop } from "@/lib/sounds";
+import PremiumBadge from "./PremiumBadge";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -33,6 +34,7 @@ interface IncomingChallenge {
   challengerChampName:  string;
   challengerChampImage: string;
   challengerElo:        string;
+  challengerIsPremium?: boolean;
   expiresAt:            number;
 }
 
@@ -164,12 +166,19 @@ function PlayerCard({
   const accepts      = player.acceptsType ?? "any";
 
   return (
-    <div className="card flex items-center gap-4">
-      <div className="w-12 h-12 rounded-full ring-2 ring-dark-600 overflow-hidden flex-shrink-0">
+    <div className={`card flex items-center gap-4 ${
+      player.isPremium ? "ring-1 ring-gold-400/40 bg-gold-400/[0.03]" : ""
+    }`}>
+      <div className={`w-12 h-12 rounded-full ring-2 overflow-hidden flex-shrink-0 ${
+        player.isPremium ? "ring-gold-400/60" : "ring-dark-600"
+      }`}>
         <Image src={player.champImage} alt={player.champName} width={48} height={48} className="scale-110" />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="font-semibold text-white text-sm truncate">{player.riotId}</p>
+        <p className="font-semibold text-white text-sm truncate flex items-center gap-2">
+          {player.riotId}
+          {player.isPremium && <PremiumBadge size="xs" />}
+        </p>
         <p className="text-xs text-gray-400">
           {player.champName} · {bracketLabel} · {player.region.toUpperCase()}
         </p>
@@ -635,6 +644,7 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
             challengerChampName:  data.challengerChampName,
             challengerChampImage: data.challengerChampImage,
             challengerElo:        data.challengerElo,
+            challengerIsPremium:  data.challengerIsPremium,
             expiresAt:            Date.now() + 44_000,
           });
         } else if (data.type === "challenge_accepted") {
@@ -1081,7 +1091,10 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
       <div className="card max-w-lg mx-auto space-y-6">
         <div className="text-center space-y-1">
           <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Incoming Challenge</p>
-          <h2 className="text-xl font-bold text-white">{incoming.challengerRiotId}</h2>
+          <h2 className="text-xl font-bold text-white flex items-center justify-center gap-2">
+            {incoming.challengerRiotId}
+            {incoming.challengerIsPremium && <PremiumBadge />}
+          </h2>
           <p className="text-sm text-gray-400">wants to 1v1!</p>
         </div>
         <div className="flex items-center justify-center gap-6">

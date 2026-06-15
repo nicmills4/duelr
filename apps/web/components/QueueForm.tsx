@@ -20,7 +20,7 @@ import Image from "next/image";
 type QueueState  = "idle" | "searching" | "matched" | "error";
 type ReportState = "idle" | "pending" | "waiting" | "confirmed" | "disputed";
 
-interface Props { riotId: string; }
+interface Props { riotId: string; isPremium?: boolean; }
 
 // ── Queue depth indicator ────────────────────────────────────────────────────
 function QueueDepth({
@@ -161,7 +161,7 @@ function VsChip({
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
-export default function QueueForm({ riotId }: Props) {
+export default function QueueForm({ riotId, isPremium = false }: Props) {
   const searchParams  = useSearchParams();
   const [champions,   setChampions]   = useState<Champion[]>([]);
   const [myChampion,  setMyChampion]  = useState(searchParams.get("my") ?? "");
@@ -185,7 +185,7 @@ export default function QueueForm({ riotId }: Props) {
   const sseRef   = useRef<EventSource | null>(null);
 
   const LOW_PLAYER_THRESHOLD = 10;
-  const MAX_VS_CHAMPIONS     = 5;
+  const MAX_VS_CHAMPIONS     = isPremium ? 50 : 5;
 
   // Sync champion selections when URL params change (e.g. "Practice →" in suggested matchups)
   useEffect(() => {

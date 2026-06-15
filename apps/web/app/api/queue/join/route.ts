@@ -39,9 +39,17 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  if (vsChampions.length > 5) {
+  // Free accounts can target up to 5 preferred matchups; Premium is uncapped
+  // (a generous ceiling guards against abuse).
+  const isPremium  = session.user.isPremium ?? false;
+  const matchupCap = isPremium ? 50 : 5;
+  if (vsChampions.length > matchupCap) {
     return NextResponse.json(
-      { error: "At most 5 vsChampions allowed" },
+      {
+        error: isPremium
+          ? `At most ${matchupCap} vsChampions allowed`
+          : "Free accounts can pick up to 5 preferred matchups. Upgrade to Premium for more.",
+      },
       { status: 400 }
     );
   }
@@ -86,7 +94,8 @@ export async function POST(req: NextRequest) {
       myChampion,
       vsChampions as string[],
       eloBracket as EloBracket | "any",
-      counterBonusFor
+      counterBonusFor,
+      isPremium
     );
 
     if (match) {

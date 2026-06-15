@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
     redis.get(`lobby:player:${challengerId}`),
     prisma.user.findUnique({
       where: { id: challengerId },
-      select: { riotId: true },
+      select: { riotId: true, isPremium: true },
     }),
   ]);
 
@@ -59,6 +59,7 @@ export async function POST(req: NextRequest) {
     challengerChampName: entry.champName,
     challengerChampImage: entry.champImage,
     challengerElo: entry.eloBracket,
+    challengerIsPremium: challengerUser.isPremium,
     targetId: targetUserId,
     challengerPlatform,
   });
@@ -73,6 +74,7 @@ export async function POST(req: NextRequest) {
       challengerChampName: entry.champName,
       challengerChampImage: entry.champImage,
       challengerElo: entry.eloBracket,
+      challengerIsPremium: challengerUser.isPremium,
     })
   );
 

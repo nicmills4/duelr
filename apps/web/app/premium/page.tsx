@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Crown, Zap, X, CheckCircle2, Loader2 } from "lucide-react";
+import { Crown, Zap, X, CheckCircle2, Loader2, BarChart3, Star, Swords } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
@@ -66,14 +66,29 @@ function PremiumContent() {
       <div className="grid grid-cols-1 gap-4">
         {[
           {
-            icon: <X className="w-5 h-5 text-gold-400" />,
-            title: "Zero Ads",
-            desc: "No banners, no nudges. Just the matchmaking tools you came for.",
+            icon: <BarChart3 className="w-5 h-5 text-gold-400" />,
+            title: "Full Stats Profile",
+            desc: "Your complete 1v1 profile — win rate, win streaks, per-champion records, and full match history.",
           },
           {
             icon: <Zap className="w-5 h-5 text-gold-400" />,
-            title: "Priority Matching (soon)",
-            desc: "Jump to the front of the pool in Specific Matchups when there are multiple candidates.",
+            title: "Priority Matchmaking",
+            desc: "When several players are waiting, you're matched first — less time in queue, more time dueling.",
+          },
+          {
+            icon: <Star className="w-5 h-5 text-gold-400" />,
+            title: "Featured in the Lobby",
+            desc: "Your open lobby is pinned to the top of the player list, so you get challenged faster.",
+          },
+          {
+            icon: <Swords className="w-5 h-5 text-gold-400" />,
+            title: "Unlimited Matchups",
+            desc: "Queue against as many specific champions as you want — free accounts are capped at 5.",
+          },
+          {
+            icon: <Crown className="w-5 h-5 text-gold-400" />,
+            title: "Premium Flair",
+            desc: "A gold Premium badge on your lobby, challenges, and the leaderboard.",
           },
         ].map(({ icon, title, desc }) => (
           <div key={title} className="card flex items-start gap-4">

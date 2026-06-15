@@ -24,6 +24,7 @@ export interface LobbyEntry {
 export interface LobbyPlayer extends LobbyEntry {
   riotId: string;
   region: string;
+  isPremium?: boolean;   // premium players are featured (sorted to the top)
 }
 
 export interface ChallengePayload {
@@ -34,6 +35,7 @@ export interface ChallengePayload {
   challengerChampName:  string;
   challengerChampImage: string;
   challengerElo:        string;
+  challengerIsPremium?: boolean;
   targetId:             string;
   /**
    * Which client the challenger issued from. Lobby join links only work via the

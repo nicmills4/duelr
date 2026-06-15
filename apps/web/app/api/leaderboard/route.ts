@@ -16,6 +16,7 @@ export interface LeaderboardEntry {
   losses:     number;
   winRate:    number; // 0–1
   totalGames: number;
+  isPremium:  boolean;
 }
 
 export async function GET() {
@@ -78,7 +79,7 @@ export async function GET() {
     const userIds = qualified.map(([id]) => id);
     const users   = await prisma.user.findMany({
       where:  { id: { in: userIds } },
-      select: { id: true, riotId: true, region: true },
+      select: { id: true, riotId: true, region: true, isPremium: true },
     });
     const userMap = new Map(users.map((u) => [u.id, u]));
 
@@ -94,6 +95,7 @@ export async function GET() {
           losses:     s.losses,
           totalGames: s.wins + s.losses,
           winRate:    s.wins / (s.wins + s.losses),
+          isPremium:  u.isPremium,
         };
       })
       .filter((e): e is LeaderboardEntry => e !== null);

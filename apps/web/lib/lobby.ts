@@ -72,7 +72,7 @@ export async function getLobbyPlayers(): Promise<LobbyPlayer[]> {
     redis.mget(...userIds.map(lobbyKey)),
     prisma.user.findMany({
       where:  { id: { in: userIds } },
-      select: { id: true, riotId: true, region: true },
+      select: { id: true, riotId: true, region: true, isPremium: true },
     }),
   ]);
 
@@ -89,12 +89,18 @@ export async function getLobbyPlayers(): Promise<LobbyPlayer[]> {
       ...(JSON.parse(raw) as LobbyEntry),
       riotId: user.riotId,
       region: user.region,
+      isPremium: user.isPremium,
     });
   });
 
   if (stale.length > 0) redis.srem(MEMBERS_KEY, ...stale).catch(() => {});
 
-  return players.sort((a, b) => b.joinedAt - a.joinedAt);
+  // Featured lobby: premium players are served first (sorted to the top),
+  // then most-recently-available within each tier.
+  return players.sort((a, b) => {
+    if (!!a.isPremium !== !!b.isPremium) return a.isPremium ? -1 : 1;
+    return b.joinedAt - a.joinedAt;
+  });
 }
 
 // ── 2v2 Groups ────────────────────────────────────────────────────────────────

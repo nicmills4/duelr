@@ -51,15 +51,26 @@ function parseVsChampions(raw: string): string[] {
 /** Special elo value meaning "match any skill level". */
 export const ANY_ELO = "any";
 
+/**
+ * Parallel "premium waiters" index for a queue key. Premium subscribers are
+ * added here in addition to the main waiter set, so scanners can claim them
+ * first — premium players get matched sooner when several candidates wait.
+ */
+const prioKey = (key: string) => `${key}:prio`;
+
 export async function joinQueueAndMatch(
   userId: string,
   myChampion: string,
   vsChampions: string[],
   eloBracket: EloBracket | "any",
-  counterBonusFor: Set<string> = new Set()
+  counterBonusFor: Set<string> = new Set(),
+  isPremium = false
 ): Promise<MatchResult | null> {
   const vsJson = JSON.stringify(vsChampions);
   const myKeys = vsChampions.map((vs) => queueKey(eloBracket, myChampion, vs));
+  // Add the caller to a key's main set (and the premium index if subscribed).
+  const addToKey = (k: string) =>
+    isPremium ? [redis.sadd(k, userId), redis.sadd(prioKey(k), userId)] : [redis.sadd(k, userId)];
 
   // ── Clear stale Redis slots from any previous queue entry ─────────────────
   const existingEntry = await prisma.queueEntry.findUnique({ where: { userId } });
@@ -71,7 +82,9 @@ export async function joinQueueAndMatch(
     );
     const toRemove = oldKeys.filter((k) => !newSet.has(k));
     if (toRemove.length > 0) {
-      await Promise.all(toRemove.map((k) => redis.srem(k, userId)));
+      await Promise.all(
+        toRemove.flatMap((k) => [redis.srem(k, userId), redis.srem(prioKey(k), userId)])
+      );
     }
   }
 
@@ -85,7 +98,7 @@ export async function joinQueueAndMatch(
   // ── Wildcard-only players just wait in their key ───────────────────────────
   const allWildcard = vsChampions.every((vs) => isWildcard(vs));
   if (allWildcard) {
-    await Promise.all(myKeys.map((k) => redis.sadd(k, userId)));
+    await Promise.all(myKeys.flatMap(addToKey));
     return null;
   }
 
@@ -128,14 +141,21 @@ export async function joinQueueAndMatch(
 
   // ── Try each key; first atomic claim wins ─────────────────────────────────
   for (const { key: checkKey, vsChampion: matchedVs } of keysToCheck) {
-    const opponentId = await redis.srandmember(checkKey);
+    // Prefer a premium waiter, then fall back to any waiter in this key.
+    let opponentId = await redis.srandmember(prioKey(checkKey));
+    if (!opponentId || opponentId === userId) {
+      opponentId = await redis.srandmember(checkKey);
+    }
     if (!opponentId || opponentId === userId) continue;
 
     const removed = await redis.srem(checkKey, opponentId);
     if (removed === 0) continue; // race — someone else claimed them first
+    redis.srem(prioKey(checkKey), opponentId).catch(() => {}); // keep prio index clean
 
-    // Remove caller from ALL their queue slots
-    await Promise.all(myKeys.map((k) => redis.srem(k, userId)));
+    // Remove caller from ALL their queue slots (main + premium index)
+    await Promise.all(
+      myKeys.flatMap((k) => [redis.srem(k, userId), redis.srem(prioKey(k), userId)])
+    );
 
     // ── Load both users ───────────────────────────────────────────────────
     let me, opponent;
@@ -147,7 +167,7 @@ export async function joinQueueAndMatch(
     } catch {
       // DB error — restore both so neither is lost
       await Promise.all([
-        ...myKeys.map((k) => redis.sadd(k, userId)),
+        ...myKeys.flatMap(addToKey),
         redis.sadd(checkKey, opponentId),
       ]);
       return null;
@@ -155,7 +175,7 @@ export async function joinQueueAndMatch(
 
     if (!me || !opponent) {
       if (opponent) await redis.sadd(checkKey, opponentId);
-      await Promise.all(myKeys.map((k) => redis.sadd(k, userId)));
+      await Promise.all(myKeys.flatMap(addToKey));
       return null;
     }
 
@@ -201,7 +221,7 @@ export async function joinQueueAndMatch(
   }
 
   // ── No opponent found — add to ALL vsChampion queue slots and wait ────────
-  await Promise.all(myKeys.map((k) => redis.sadd(k, userId)));
+  await Promise.all(myKeys.flatMap(addToKey));
   return null;
 }
 
@@ -215,7 +235,7 @@ export async function leaveQueue(userId: string): Promise<void> {
   );
 
   await Promise.all([
-    ...keys.map((k) => redis.srem(k, userId)),
+    ...keys.flatMap((k) => [redis.srem(k, userId), redis.srem(prioKey(k), userId)]),
     prisma.queueEntry.delete({ where: { userId } }),
   ]);
 }

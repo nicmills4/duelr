@@ -102,6 +102,9 @@ export default function NavLinks({
         <ProtectedLink href="/partners"   label="Practice Partners" accountType={accountType} requiresFull={true} />
         <ProtectedLink href="/coaching"   label="Coaching"          accountType={accountType} requiresFull={true} />
         <a href="/leaderboard" className="hover:text-gold-400 transition-colors">Duelr 1v1 Top Players</a>
+        {hasSession && (
+          <a href="/profile" className="hover:text-gold-400 transition-colors">My Stats</a>
+        )}
       </nav>
 
       {/* Mobile hamburger button */}
@@ -131,6 +134,12 @@ export default function NavLinks({
                 className="flex items-center px-5 py-4 text-sm text-gray-300 hover:text-gold-400 hover:bg-dark-700/40 active:bg-dark-700/60 transition-colors border-b border-dark-700/50">
                 Duelr 1v1 Top Players
               </a>
+              {hasSession && (
+                <a href="/profile" onClick={close}
+                  className="flex items-center px-5 py-4 text-sm text-gray-300 hover:text-gold-400 hover:bg-dark-700/40 active:bg-dark-700/60 transition-colors border-b border-dark-700/50">
+                  My Stats
+                </a>
+              )}
               {hasSession && (
                 <a href="/settings" onClick={close}
                   className="flex items-center gap-2.5 px-5 py-4 text-sm text-gray-300 hover:text-gold-400 hover:bg-dark-700/40 active:bg-dark-700/60 transition-colors">

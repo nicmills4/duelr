@@ -2,6 +2,7 @@ import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { Trophy, TrendingUp, Minus, TrendingDown } from "lucide-react";
 import type { LeaderboardEntry } from "@/app/api/leaderboard/route";
+import PremiumBadge from "@/components/PremiumBadge";
 
 export const revalidate = 300; // Revalidate every 5 minutes
 
@@ -12,16 +13,16 @@ async function getLeaderboard(): Promise<LeaderboardEntry[]> {
   });
 
   const stats = new Map<string, {
-    riotId: string; region: string; wins: number; losses: number;
+    riotId: string; region: string; wins: number; losses: number; isPremium: boolean;
   }>();
 
-  function ensure(userId: string, riotId: string, region: string) {
-    if (!stats.has(userId)) stats.set(userId, { riotId, region, wins: 0, losses: 0 });
+  function ensure(userId: string, riotId: string, region: string, isPremium: boolean) {
+    if (!stats.has(userId)) stats.set(userId, { riotId, region, wins: 0, losses: 0, isPremium });
   }
 
   for (const m of confirmed) {
-    ensure(m.playerAId, m.playerA.riotId, m.playerA.region);
-    ensure(m.playerBId, m.playerB.riotId, m.playerB.region);
+    ensure(m.playerAId, m.playerA.riotId, m.playerA.region, m.playerA.isPremium);
+    ensure(m.playerBId, m.playerB.riotId, m.playerB.region, m.playerB.isPremium);
     if (m.outcome === "A_WIN") {
       stats.get(m.playerAId)!.wins++;
       stats.get(m.playerBId)!.losses++;
@@ -37,6 +38,7 @@ async function getLeaderboard(): Promise<LeaderboardEntry[]> {
       wins: s.wins, losses: s.losses,
       totalGames: s.wins + s.losses,
       winRate: s.wins + s.losses > 0 ? s.wins / (s.wins + s.losses) : 0,
+      isPremium: s.isPremium,
     }))
     .filter((e) => e.totalGames >= 3)
     .sort((a, b) => b.wins - a.wins || b.winRate - a.winRate)
@@ -99,10 +101,11 @@ export default async function LeaderboardPage() {
 
                 {/* Identity */}
                 <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-white truncate">
+                  <p className="font-semibold text-white truncate flex items-center gap-2">
                     {entry.riotId}
+                    {entry.isPremium && <PremiumBadge size="xs" />}
                     {isMe && (
-                      <span className="ml-2 text-xs text-gold-400 font-normal">you</span>
+                      <span className="text-xs text-gold-400 font-normal">you</span>
                     )}
                   </p>
                   <p className="text-xs text-gray-600 uppercase">{entry.region}</p>
