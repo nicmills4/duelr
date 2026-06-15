@@ -2,7 +2,7 @@
  * Routes where Google-served ads are permitted.
  *
  * AdSense's "Google-served ads on screens without publisher content" policy
- * forbids ads on utility / app screens — login, lobby, queue, settings,
+ * forbids ads on utility / app screens — login, lobby, settings,
  * checkout, verify-email, etc. Ads may appear ONLY on pages with substantive,
  * crawlable publisher content (guides, articles, a content-rich leaderboard).
  *

@@ -15,7 +15,6 @@
 7. [API Reference](#7-api-reference)
    - [Auth](#71-auth)
    - [Lobby](#72-lobby)
-   - [Queue](#73-queue)
    - [Coaching](#74-coaching)
    - [Partners](#75-partners)
    - [Admin](#76-admin)
@@ -39,7 +38,7 @@
 Duelr is a full-stack web application for League of Legends players who want to:
 
 - **1v1 Open Lobby** — post yourself as available and challenge any other player in real time
-- **1v1 / 2v2 Queue** — automated matchmaking that pairs players with compatible champion matchups and ELO brackets
+- **2v2 Bot Lane Lobby** — form a duo and fill a 4-player group for a 2v2 practice game
 - **Partner Finder** — async board for players seeking a consistent duo partner
 - **Coaching Marketplace** — hire a verified Masters+ coach for paid 1-on-1 sessions
 
@@ -75,7 +74,6 @@ app/
     auth/               Registration, login, email verification
     coaching/           Public coach list, booking, session detail
     lobby/              Open-lobby presence + challenge flow
-    queue/              Automated matchmaking queue
     partners/           Partner-finder posts
     stripe/webhook/     Stripe event handler
     ...
@@ -89,7 +87,6 @@ lib/                    Server-side utilities
   discord.ts            Discord bot helpers (voice channel creation)
   email.ts              Resend email templates
   lobby.ts              Redis lobby state management
-  matchmaking.ts        Queue matching logic
   prisma.ts             Prisma singleton
   redis.ts              ioredis singleton
   session.ts            User session management
@@ -103,7 +100,7 @@ tests/
 ```
 
 **Data flow for real-time features:**  
-Redis stores lobby presence, queue entries, and pending challenges. Server-Sent Events (SSE) push updates to the browser. No WebSockets are used.
+Redis stores lobby presence and pending challenges. Server-Sent Events (SSE) push updates to the browser. No WebSockets are used.
 
 ---
 
@@ -207,16 +204,6 @@ Redis stores lobby presence, queue entries, and pending challenges. Server-Sent 
 | `stripeSessionId` | `String?` | Stripe Checkout Session ID — set by webhook |
 | `status` | `String` | `pending_payment` → `confirmed` (set by webhook) |
 
-### QueueEntry
-
-Represents one player in the automated matchmaking queue.
-
-| Field | Notes |
-|---|---|
-| `myChampion` | Champion the user wants to play |
-| `vsChampions` | JSON `string[]` — desired opponents, or `["_any"]` |
-| `eloBracket` | `low \| mid \| high \| elite \| apex` |
-
 ### PartnerPost
 
 Async "looking for duo" board post. One post per user.
@@ -236,7 +223,7 @@ Outcome record created when two players are matched. Both players self-report wi
 3. Upserts a `User` record with `accountType: "guest"`
 4. Sets an `HttpOnly` session cookie (`duelr_session`)
 
-Guest accounts can use the lobby and queue. They **cannot** pay for coaching.
+Guest accounts can use the lobby. They **cannot** pay for coaching.
 
 ### Full Account (email + password)
 
@@ -288,18 +275,6 @@ All API routes are under `/api/`. Routes marked 🔒 require a user session; �
 
 **Match acceptance flow:**  
 When both players accept, `respond` route creates a `Match` record and (if `DISCORD_BOT_TOKEN` is set) creates a temporary Discord voice channel. The invite URL is returned to both players.
-
-### 7.3 Queue
-
-| Method | Path | Auth | Description |
-|---|---|---|---|
-| `POST` | `/api/queue/join` | 🔒 | Enter the automated queue |
-| `POST` | `/api/queue/leave` | 🔒 | Leave the queue |
-| `GET` | `/api/queue/stream` | 🔒 | SSE stream — fires when a match is found |
-| `GET` | `/api/queue/count` | — | Number of players currently queued |
-| `GET` | `/api/queue/depth` | — | Queue depth by champion / bracket |
-| `GET` | `/api/queue/matchup-info` | — | Champion matchup stats |
-| `GET` | `/api/queue/popular` | — | Most popular champions in queue |
 
 ### 7.4 Coaching
 
@@ -468,16 +443,7 @@ These two preference fields are independent — a player can have both `acceptsT
 - Challenges are stored as Redis keys; both players get updates via SSE
 - On mutual accept: a `Match` DB record is created and a Discord voice channel is provisioned
 - **Public by default** — the lobby list (`GET /api/lobby/public` and `GET /api/lobby/players`) is readable without authentication, so visitors can see active lobbies as social proof. Posting or challenging requires a session.
-
-### Automated Queue
-
-API-only automated matchmaking (`/api/queue/*`). The UI page (`/queue`) was removed; the endpoints remain active.
-
-Players join with `myChampion`, `vsChampions` (champions they want to face), and `eloBracket`. The server continuously tries to pair compatible entries.
-
-- A match requires: player A's `myChampion` is in player B's `vsChampions` AND vice versa (or either side uses `"_any"`)
-- Matching runs on every join and periodically via the SSE stream
-- On match: same Discord + DB record flow as Open Lobby
+- **Preferred matchups** — when posting a lobby, a player can list the champions they most want to face (`vsChampions`). These are shown on their lobby card to help opponents pick the practice they want; free accounts can list up to 5, Premium up to 50.
 
 ### 2v2 Mode
 
@@ -642,7 +608,6 @@ The runner reads env vars from `.env` and auto-starts `next dev` if needed.
 | `03-leaderboard.mjs` | Leaderboard | Public leaderboard shape |
 | `04-partners.mjs` | Partner Finder | List, create, delete posts |
 | `05-lobby.mjs` | Open Lobby | Availability, public list (no auth), leave, challenge, vsChampions accepted/truncated, player entry shape |
-| `06-queue.mjs` | Automated Queue | Join, leave, count endpoint (UI page removed; API endpoints remain) |
 | `07-settings.mjs` | Settings | Account settings update guards |
 | `08-coaching.mjs` | Coaching | Public list shape + privacy, booking guards, session detail endpoint |
 | `09-email-verification.mjs` | Email Verification | Verification token flow |

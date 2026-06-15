@@ -10,9 +10,9 @@ import { isAdEligibleRoute } from "@/lib/ad-routes";
  * for non-premium users.
  *
  * Keeping the adsbygoogle script (and therefore Auto Ads) off login / lobby /
- * queue / settings screens is what satisfies AdSense's "screens without
- * publisher content" policy: the reviewer crawls logged out, so the script
- * must be absent from those thin screens entirely — not just hidden.
+ * settings screens is what satisfies AdSense's "screens without publisher
+ * content" policy: the reviewer crawls logged out, so the script must be
+ * absent from those thin screens entirely — not just hidden.
  */
 export default function AdsGate({ isPremium }: { isPremium: boolean }) {
   const pathname = usePathname();

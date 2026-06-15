@@ -36,7 +36,7 @@ export default function SuggestedMatchups() {
 
   useEffect(() => { fetchSuggestions(false); }, []);
 
-  function queueForMatchup(myChampion: string, vsChampion: string) {
+  function practiceMatchup(myChampion: string, vsChampion: string) {
     router.push(`/lobby?my=${encodeURIComponent(myChampion)}&vs=${encodeURIComponent(vsChampion)}`);
   }
 
@@ -124,7 +124,7 @@ export default function SuggestedMatchups() {
                     </span>
                   </div>
                   <button
-                    onClick={() => queueForMatchup(champ.myChampion, s.vsChampion)}
+                    onClick={() => practiceMatchup(champ.myChampion, s.vsChampion)}
                     className="text-xs text-gold-400 hover:text-gold-500 font-medium transition-colors"
                   >
                     Practice →

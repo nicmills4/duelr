@@ -27,7 +27,6 @@ model User {
   stripeSubscriptionId String?  @unique
 
   sessions         Session[]
-  queueEntry       QueueEntry?
   partnerPost      PartnerPost?
   coachProfile     CoachProfile?
   studentSessions  CoachingSession[] @relation("StudentSessions")
@@ -44,18 +43,6 @@ model Session {
   createdAt DateTime @default(now())
 
   @@index([token])
-}
-
-model QueueEntry {
-  id           String   @id @default(cuid())
-  userId       String   @unique
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  myChampion   String   // champion the user wants to play
-  vsChampions  String   // JSON array e.g. '["Darius","Garen"]' or '["_any"]'
-  eloBracket   String   // "low" | "mid" | "high" | "elite" | "apex"
-  createdAt    DateTime @default(now())
-
-  @@index([myChampion, eloBracket])
 }
 
 model PartnerPost {

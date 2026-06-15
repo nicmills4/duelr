@@ -1,23 +1,21 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
 import type { LobbyGroup } from "@/lib/lobby-types";
 import { ALL_SLOTS } from "@/lib/lobby-types";
 
 export const dynamic = "force-dynamic";
 
+/** Live count of players currently available — 1v1 open lobby + filled 2v2 slots. */
 export async function GET() {
   try {
-    // Fetch all three data sources in parallel
-    const [queueCount, lobbyMemberIds, groupIds] = await Promise.all([
-      prisma.queueEntry.count(),
+    const [lobbyMemberIds, groupIds] = await Promise.all([
       redis.smembers("lobby:members"),
       redis.smembers("lobby:groups"),
     ]);
 
     // ── 1v1 open lobby ────────────────────────────────────────────────────────
-    // Verify each member's individual key still exists — the set itself has no
-    // TTL, so expired members linger until getLobbyPlayers() cleans them.
+    // The members set has no TTL, so verify each player's key still exists;
+    // expired members linger until getLobbyPlayers() cleans them.
     let lobbyCount = 0;
     if (lobbyMemberIds.length > 0) {
       const values = await redis.mget(
@@ -31,27 +29,24 @@ export async function GET() {
       if (stale.length) redis.srem("lobby:members", ...stale).catch(() => {});
     }
 
-    // ── 2v2 group lobby ───────────────────────────────────────────────────────
-    // Count every filled slot across all active groups.
+    // ── 2v2 group lobby — count every filled slot ─────────────────────────────
     let groupCount = 0;
     if (groupIds.length > 0) {
-      const raws = await redis.mget(
-        ...groupIds.map((gid) => `lobby:group:${gid}`)
-      );
+      const raws = await redis.mget(...groupIds.map((gid) => `lobby:group:${gid}`));
       const staleGroups: string[] = [];
       raws.forEach((raw, i) => {
         if (!raw) { staleGroups.push(groupIds[i]); return; }
-        const group = JSON.parse(raw) as LobbyGroup;
-        for (const k of ALL_SLOTS) {
-          if (group[k] != null) groupCount++;
+        try {
+          const group = JSON.parse(raw) as LobbyGroup;
+          for (const k of ALL_SLOTS) if (group[k] != null) groupCount++;
+        } catch {
+          staleGroups.push(groupIds[i]);
         }
       });
-      if (staleGroups.length) {
-        redis.srem("lobby:groups", ...staleGroups).catch(() => {});
-      }
+      if (staleGroups.length) redis.srem("lobby:groups", ...staleGroups).catch(() => {});
     }
 
-    return NextResponse.json({ count: queueCount + lobbyCount + groupCount });
+    return NextResponse.json({ count: lobbyCount + groupCount });
   } catch {
     return NextResponse.json({ count: 0 });
   }

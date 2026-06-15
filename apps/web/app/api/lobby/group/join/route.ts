@@ -3,7 +3,6 @@ import { getSession } from "@/lib/session";
 import {
   joinLobbyGroup, leaveLobby, leaveLobbyGroup, createReadyGroup,
 } from "@/lib/lobby";
-import { leaveQueue } from "@/lib/matchmaking";
 import { redis, notificationChannel } from "@/lib/redis";
 import type { SlotKey, DuoRole, LobbyGroup, GroupSlot } from "@/lib/lobby-types";
 import { ALL_SLOTS, SLOT_ROLE, groupIsFull } from "@/lib/lobby-types";
@@ -45,10 +44,9 @@ export async function POST(req: NextRequest) {
 
   const { userId, user } = session;
 
-  // Mutual exclusivity: leave 1v1 lobby, queue, and any other 2v2 group first
+  // Mutual exclusivity: leave 1v1 lobby and any other 2v2 group first
   await Promise.all([
     leaveLobby(userId).catch(() => {}),
-    leaveQueue(userId).catch(() => {}),
     leaveLobbyGroup(userId).catch(() => {}),
   ]);
 

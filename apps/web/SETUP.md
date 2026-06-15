@@ -98,8 +98,7 @@ app/
     lobby/challenge     → Challenge another player
     lobby/respond       → Accept or decline a challenge
     lobby/players       → Real-time player list (public, no auth required)
-    queue/join          → Automated queue join (API only — no UI page)
-    queue/leave         → Leave automated queue
+    lobby/count         → Live count of available players
 
 lib/
   prisma.ts             → Prisma client singleton
@@ -107,7 +106,7 @@ lib/
   session.ts            → JWT session (cookie-based)
   lobby.ts              → Redis lobby presence helpers
   lobby-types.ts        → Shared types: LobbyEntry, AcceptsType, etc.
-  matchmaking.ts        → Automated queue join/leave + matching logic
+  stats.ts              → Per-user 1v1 stats (Premium profile)
   constants.ts          → ELO_BRACKETS (browser-safe, no Node deps)
   feature-flags.ts      → Toggle flags (SHOW_ADBLOCK_MODAL, etc.)
 

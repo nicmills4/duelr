@@ -3,7 +3,6 @@ import { getSession } from "@/lib/session";
 import {
   createLobbyGroup, leaveLobby, leaveLobbyGroup,
 } from "@/lib/lobby";
-import { leaveQueue } from "@/lib/matchmaking";
 import { BRACKET_ORDER } from "@/lib/constants";
 import type { SlotKey, DuoRole } from "@/lib/lobby-types";
 import { SLOT_ROLE } from "@/lib/lobby-types";
@@ -34,10 +33,9 @@ export async function POST(req: NextRequest) {
 
   const { userId, user } = session;
 
-  // Leave any existing 1v1 lobby, specific matchup queue, or 2v2 group
+  // Leave any existing 1v1 lobby or 2v2 group
   await Promise.all([
     leaveLobby(userId).catch(() => {}),
-    leaveQueue(userId).catch(() => {}),
     leaveLobbyGroup(userId).catch(() => {}),
   ]);
 

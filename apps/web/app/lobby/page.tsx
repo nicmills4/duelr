@@ -16,7 +16,7 @@ export default async function LobbyPage() {
           </h1>
           <p className="text-sm text-gray-400 mt-1">
             Mark yourself as available — other players can see you and send a direct challenge.
-            No queue, no wait.
+            Instant, no waiting around.
           </p>
           {session && (
             <p className="text-xs text-gray-600 mt-1">

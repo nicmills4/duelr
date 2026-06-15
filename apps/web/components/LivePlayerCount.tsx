@@ -13,7 +13,7 @@ export default function LivePlayerCount({ className = "", refreshInterval = 3000
 
   useEffect(() => {
     function fetch_count() {
-      fetch("/api/queue/count")
+      fetch("/api/lobby/count")
         .then((r) => r.json())
         .then((d) => setCount(d.count ?? 0))
         .catch(() => {});

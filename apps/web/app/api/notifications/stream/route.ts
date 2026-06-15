@@ -1,8 +1,7 @@
 /**
  * Persistent SSE stream for real-time lobby notifications.
  *
- * Unlike /api/queue/stream (which closes after a match), this stream
- * stays open and delivers multiple typed events:
+ * Stays open and delivers multiple typed events:
  *   { type: "challenge", ... }          — incoming challenge
  *   { type: "challenge_accepted", ... } — challenger accepted
  *   { type: "challenge_declined", ... } — challenger declined

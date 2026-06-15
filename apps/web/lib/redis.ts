@@ -30,16 +30,6 @@ export function createSubscriberClient() {
   });
 }
 
-// Queue key: queue:{elo}:{myChampion}:{vsChampion}
-export function queueKey(elo: string, myChampion: string, vsChampion: string) {
-  return `queue:${elo}:${myChampion.toLowerCase()}:${vsChampion.toLowerCase()}`;
-}
-
-// Channel that notifies a specific user of a match
-export function matchChannel(userId: string) {
-  return `match:${userId}`;
-}
-
 // Channel for real-time lobby notifications (challenges, responses)
 export function notificationChannel(userId: string) {
   return `notifications:${userId}`;

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { setLobbyAvailable, leaveLobbyGroup, LOBBY_TTL } from "@/lib/lobby";
-import { leaveQueue } from "@/lib/matchmaking";
 import { BRACKET_ORDER } from "@/lib/constants";
 import type { AcceptsType } from "@/lib/lobby-types";
 
@@ -31,21 +30,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Missing champion metadata" }, { status: 400 });
   }
 
-  // Validate & sanitise vsChampions (optional, max 5)
+  // Validate & sanitise vsChampions (preferred matchups, optional).
+  // Free accounts can list up to 5; Premium up to 50.
+  const matchupCap = (session.user.isPremium ?? false) ? 50 : 5;
   const validVs: string[] = Array.isArray(vsChampions)
     ? (vsChampions as unknown[])
         .filter((v): v is string => typeof v === "string" && CHAMPION_RE.test(v))
-        .slice(0, 5)
+        .slice(0, matchupCap)
     : [];
 
   const userId = session.userId;
   const riotId = session.user?.riotId ?? "";
 
-  // Mutual exclusivity: leave queue and 2v2 group before going 1v1 available
-  await Promise.all([
-    leaveQueue(userId).catch(() => {}),
-    leaveLobbyGroup(userId).catch(() => {}),
-  ]);
+  // Mutual exclusivity: leave any 2v2 group before going 1v1 available
+  await leaveLobbyGroup(userId).catch(() => {});
 
   await setLobbyAvailable(userId, riotId, {
     myChampion,

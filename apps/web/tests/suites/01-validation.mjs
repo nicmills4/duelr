@@ -141,24 +141,6 @@ export const suite = {
       },
     },
 
-    // ── Auth guards — Queue ──────────────────────────────────────────────────
-    {
-      name: "Queue join — POST requires auth (401)",
-      async run(http) {
-        const { res } = await http.post("/api/queue/join", {
-          myChampion: "Zed", vsChampions: ["Darius"], eloBracket: "mid",
-        });
-        assertStatus(res, 401);
-      },
-    },
-    {
-      name: "Queue leave — POST requires auth (401)",
-      async run(http) {
-        const { res } = await http.post("/api/queue/leave", {});
-        assertStatus(res, 401);
-      },
-    },
-
     // ── Auth guards — Partners ───────────────────────────────────────────────
     {
       name: "Partners POST — requires auth (401)",

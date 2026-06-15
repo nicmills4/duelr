@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Crown, Zap, X, CheckCircle2, Loader2, BarChart3, Star, Swords } from "lucide-react";
+import { Crown, X, CheckCircle2, Loader2, BarChart3, Star, Swords } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
@@ -71,19 +71,14 @@ function PremiumContent() {
             desc: "Your complete 1v1 profile — win rate, win streaks, per-champion records, and full match history.",
           },
           {
-            icon: <Zap className="w-5 h-5 text-gold-400" />,
-            title: "Priority Matchmaking",
-            desc: "When several players are waiting, you're matched first — less time in queue, more time dueling.",
-          },
-          {
             icon: <Star className="w-5 h-5 text-gold-400" />,
             title: "Featured in the Lobby",
             desc: "Your open lobby is pinned to the top of the player list, so you get challenged faster.",
           },
           {
             icon: <Swords className="w-5 h-5 text-gold-400" />,
-            title: "Unlimited Matchups",
-            desc: "Queue against as many specific champions as you want — free accounts are capped at 5.",
+            title: "Unlimited Preferred Matchups",
+            desc: "List as many preferred opponents on your lobby as you like — free accounts are capped at 5.",
           },
           {
             icon: <Crown className="w-5 h-5 text-gold-400" />,

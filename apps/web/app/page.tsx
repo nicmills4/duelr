@@ -29,8 +29,8 @@ export default async function HomePage({
           <span className="text-gray-300 text-2xl md:text-3xl font-sans font-normal tracking-normal">Matchmaking for League of Legends</span>
         </h1>
         <p className="text-gray-400 max-w-xl mx-auto text-lg">
-          The practice tool League players actually need. Jump into the Open Lobby
-          to find anyone ready to play, or queue for a specific matchup you want to grind.
+          The practice tool League players actually need. Jump into the Open Lobby,
+          see who&apos;s ready to play, and send a direct 1v1 challenge in seconds.
         </p>
         <LivePlayerCount className="justify-center" />
       </div>
@@ -66,17 +66,17 @@ export default async function HomePage({
             {
               icon: <Users className="w-5 h-5 text-gold-400" />,
               title: "Open Lobby",
-              desc: "Mark yourself available and get challenged directly — no queue, no wait. See who else is online and send a 1v1 request in seconds.",
+              desc: "Mark yourself available and get challenged directly — instant, no waiting around. See who else is online and send a 1v1 request in seconds.",
             },
             {
               icon: <Swords className="w-5 h-5 text-gold-400" />,
-              title: "Specific Matchups",
-              desc: "Queue as your champion and pick up to 5 opponents you want to face. We match you the moment the right player joins — including a bonus bracket if you have a stat advantage.",
+              title: "Preferred Matchups",
+              desc: "List the champions you most want to face on your lobby, so opponents can pick the practice you're after. Filter the player list by champion, role, and elo.",
             },
             {
               icon: <Zap className="w-5 h-5 text-gold-400" />,
               title: "Instant Connect",
-              desc: "Once matched or challenged, you get your opponent's Riot ID on the spot — add them, create a custom game, and play.",
+              desc: "The moment a challenge is accepted, you get your opponent's Riot ID on the spot — add them, create a custom game, and play.",
             },
           ].map((f) => (
             <div key={f.title} className="card flex gap-4">

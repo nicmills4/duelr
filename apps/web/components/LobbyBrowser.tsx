@@ -16,7 +16,7 @@ import {
   Radio, RefreshCw, Clock, Filter, X, Shield,
   UserPlus, LogOut, Crown, Copy, Check, Plus, LogIn, ExternalLink,
 } from "lucide-react";
-import { playQueuePop } from "@/lib/sounds";
+import { playMatchSound } from "@/lib/sounds";
 import PremiumBadge from "./PremiumBadge";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -628,7 +628,7 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
         const data = JSON.parse(event.data);
 
         if (data.type === "challenge") {
-          playQueuePop();
+          playMatchSound();
           if ("Notification" in window && Notification.permission === "default") {
             Notification.requestPermission();
           }
@@ -648,7 +648,7 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
             expiresAt:            Date.now() + 44_000,
           });
         } else if (data.type === "challenge_accepted") {
-          playQueuePop();
+          playMatchSound();
           setMatchResult(data.opponent as MatchResult);
           setOutgoing(null);
           setAvailable(false);
@@ -668,7 +668,7 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
           setMyGroup((prev) => prev?.groupId === updated.groupId ? updated : prev);
           setGroups((prev) => prev.map((g) => g.groupId === updated.groupId ? updated : g));
         } else if (data.type === "group_ready") {
-          playQueuePop();
+          playMatchSound();
           setGroupReady({
             team1: data.team1, team2: data.team2, voiceChannelUrl: data.voiceChannelUrl,
             readyGroupId: data.readyGroupId, hostUserId: data.hostUserId,
@@ -827,7 +827,7 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
     const data = await res.json();
     setIncoming(null);
     if (accept && data.challenger) {
-      playQueuePop();
+      playMatchSound();
       setMatchResult(data.challenger as MatchResult);
       setAvailable(false);
     }
@@ -880,7 +880,7 @@ export default function LobbyBrowser({ riotId, userId }: Props) {
     setJoiningSlot(null);
     if (!res.ok) return;
     if (data.isFull) {
-      playQueuePop();
+      playMatchSound();
       setGroupReady({
         team1: data.group.team1_adc && data.group.team1_support ? [data.group.team1_adc, data.group.team1_support] : [],
         team2: data.group.team2_adc && data.group.team2_support ? [data.group.team2_adc, data.group.team2_support] : [],
