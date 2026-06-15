@@ -1,11 +1,10 @@
 import type { Metadata } from "next";
-import Script from "next/script";
 import { Bebas_Neue, Exo_2 } from "next/font/google";
 import "./globals.css";
 import { getSession } from "@/lib/session";
 import NavLinks from "@/components/NavLinks";
 import AdBanner from "@/components/AdBanner";
-import AdBlockModal from "@/components/AdBlockModal";
+import AdsGate from "@/components/AdsGate";
 import GlobalLobbyNotifier from "@/components/GlobalLobbyNotifier";
 import { Settings } from "lucide-react";
 import ResendVerificationButton from "@/components/ResendVerificationButton";
@@ -39,14 +38,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="en" className={`dark ${bebasNeue.variable} ${exo2.variable}`}>
       <body className="min-h-screen bg-dark-900 font-sans">
-        {process.env.NEXT_PUBLIC_ADSENSE_PUBLISHER_ID && (
-          <Script
-            async
-            src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${process.env.NEXT_PUBLIC_ADSENSE_PUBLISHER_ID}`}
-            crossOrigin="anonymous"
-            strategy="afterInteractive"
-          />
-        )}
+        {/* AdSense script + ad UI load only on content pages (see AdsGate) so
+            thin app/login screens never serve ads — required by AdSense policy. */}
+        <AdsGate isPremium={!!session?.user.isPremium} />
         {/* Discord invite banner */}
         <div className="bg-indigo-600/90 text-white text-xs text-center py-2 px-4">
           <span className="opacity-90">Join the Duelr community on Discord — find opponents, discuss matchups, and get updates.{" "}</span>
@@ -84,7 +78,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           </div>
         )}
         {session && !session.user.isPremium && <AdBanner />}
-        {!session?.user.isPremium && <AdBlockModal />}
         <main>{children}</main>
         {/* Global toast: fires when a lobby challenge is accepted off-page */}
         {session && <GlobalLobbyNotifier />}

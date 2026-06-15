@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { usePathname } from "next/navigation";
+import { isAdEligibleRoute } from "@/lib/ad-routes";
 
 interface Props {
   slot: string;          // AdSense ad slot ID, e.g. "1234567890"
@@ -17,16 +19,24 @@ declare global {
 export default function AdUnit({ slot, format = "auto", className = "" }: Props) {
   const adRef = useRef<HTMLModElement>(null);
   const pushed = useRef(false);
+  const pathname = usePathname();
 
   const publisherId = process.env.NEXT_PUBLIC_ADSENSE_PUBLISHER_ID;
+  // Defense in depth: an ad unit must never render on a non-content screen,
+  // even if mistakenly placed there — AdSense policy forbids ads on screens
+  // without publisher content.
+  const eligible = isAdEligibleRoute(pathname);
 
   useEffect(() => {
-    if (!publisherId || pushed.current) return;
+    if (!eligible || !publisherId || pushed.current) return;
     try {
       (window.adsbygoogle = window.adsbygoogle || []).push({});
       pushed.current = true;
     } catch {}
-  }, [publisherId]);
+  }, [eligible, publisherId]);
+
+  // Never serve an ad on a non-content route.
+  if (!eligible) return null;
 
   // In dev (no publisher ID set), show a labelled placeholder
   if (!publisherId) {
